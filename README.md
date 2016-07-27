@@ -16,7 +16,7 @@ cd ceph-collect
 
 
 ```
-curl -SL https://github.com/42on/ceph-collect/ceph-collect
+curl -SL -o ceph-collect https://raw.githubusercontent.com/42on/ceph-collect/master/ceph-collect
 chmod +x ceph-collect
 ```
 
