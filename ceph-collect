@@ -1,5 +1,102 @@
 #!/usr/bin/env python
+"""
+ceph-collect is a tool used by 42on to gather information from a Ceph cluster
+in case of support or emergency assistance.
 
-import rados
+The tool gathers information from the Ceph cluster and creates a tarball in /tmp
+"""
 
-print("Hello World!")
+import os
+import sys
+import logging
+import subprocess
+import tempfile
+import tarfile
+
+
+CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
+CEPH_TIMEOUT = 10
+
+# Logging configuration
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+LOGGER = logging.getLogger()
+
+# Exceptions
+class Error(Exception):
+    """Base Exception for all other exceptions"""
+    pass
+
+class ConfigError(Error):
+    """Exception for configuration errors"""
+    pass
+
+
+# Functions to gather Ceph information
+def spawn(command, shell=False):
+    p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=shell)
+    (result, err) = p.communicate()
+    return result.strip()
+
+
+def spawn_ceph_command(args):
+    return spawn(['ceph', '--client_mount_timeout={0}'.format(CEPH_TIMEOUT)] + args)
+
+
+def write_file(filename, content):
+    with open(filename, 'w') as f:
+        f.write(content + '\n')
+
+
+def check_ceph_config(config_file):
+    return os.path.isfile(config_file)
+
+
+def get_ceph_status():
+    return spawn_ceph_command(['-s'])
+
+
+def get_osd_info():
+    info = dict()
+    info['tree'] = spawn_ceph_command(['osd', 'tree'])
+    info['df'] = spawn_ceph_command(['osd', 'df'])
+    info['dump'] = spawn_ceph_command(['osd', 'dump'])
+    return info
+
+
+def collect_ceph_information():
+    if check_ceph_config(CEPH_CONFIG_FILE) is False:
+        raise ConfigError('{0} is not a file, can not continue'.format(CEPH_CONFIG_FILE))
+
+    LOGGER.info('Gathering overall Ceph information')
+    status = get_ceph_status()
+
+    LOGGER.info('Gathering OSD information')
+    osd_info = get_osd_info()
+
+    tmpdir = tempfile.mkdtemp()
+
+    write_file('{0}/status'.format(tmpdir), status)
+    write_file('{0}/osd_tree'.format(tmpdir), osd_info['tree'])
+    write_file('{0}/osd_df'.format(tmpdir), osd_info['df'])
+    write_file('{0}/osd_dump'.format(tmpdir), osd_info['dump'])
+
+    tarball = '{0}/ceph-collect.tar'.format(tempfile.gettempdir())
+
+    with tarfile.open(tarball, 'w') as tar:
+        tar.add(tmpdir)
+
+    tar.close()
+
+    LOGGER.info('Outputted Ceph information to {0}'.format(tarball))
+
+
+if __name__ == '__main__':
+    ret = 1
+    try:
+        collect_ceph_information()
+        ret = 0
+    except ConfigError as exc:
+        LOGGER.error(exc)
+
+    sys.exit(ret)
