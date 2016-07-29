@@ -106,7 +106,8 @@ def get_pg_info(r, timeout):
     return info
 
 
-def collect_ceph_information(r, output_directory, timeout, cleanup=True):
+def collect_ceph_information(r, ceph_config, output_directory, timeout,
+                             cleanup=True):
     tmpdir = tempfile.mkdtemp()
 
     LOGGER.debug('Using temporary directory %s', tmpdir)
@@ -150,6 +151,9 @@ def collect_ceph_information(r, output_directory, timeout, cleanup=True):
             tar.add(name=tmpfile,
                     arcname='ceph-collect_{0}/{1}'.format(timestr, filename))
 
+        tar.add(name=ceph_config,
+                arcname='ceph-collect_{0}/{1}'.format(timestr, 'ceph.conf'))
+
     tar.close()
 
     LOGGER.info('Outputted Ceph information to {0}'.format(tarball))
@@ -188,7 +192,8 @@ if __name__ == '__main__':
     try:
         cnx = get_rados_connection(ceph_config=args.ceph_config,
                                    timeout=args.timeout)
-        collect_ceph_information(cnx, output_directory=args.output_dir,
+        collect_ceph_information(r=cnx, ceph_config=args.ceph_config,
+                                 output_directory=args.output_dir,
                                  timeout=args.timeout, cleanup=args.cleanup)
         ret = 0
     except ConfigError as exc:
