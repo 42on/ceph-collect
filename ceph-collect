@@ -49,7 +49,7 @@ def get_rados_connection(ceph_config, timeout):
 
 def ceph_mon_command(r, command, timeout, output_format='plain'):
     cmd = {'prefix': command, 'format': output_format}
-    ret, buf, errs = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
+    _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
     return buf
 
 
@@ -104,10 +104,9 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files = dict()
 
     LOGGER.info('Gathering overall Ceph information')
-    files['status'.format(tmpdir)] = ceph_mon_command(r, 'status',
-                                                             timeout)
-    files['version'.format(tmpdir)] = str(r.version()) + '\n'
-    files['fsid'.format(tmpdir)] = str(r.get_fsid()) + '\n'
+    files['status'] = ceph_mon_command(r, 'status', timeout)
+    files['version'] = str(r.version()) + '\n'
+    files['fsid'] = str(r.get_fsid()) + '\n'
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout).items():
@@ -145,7 +144,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
     tar.close()
 
-    LOGGER.info('Outputted Ceph information to {0}'.format(tarball))
+    LOGGER.info('Outputted Ceph information to %s', tarball)
 
     if cleanup:
         LOGGER.debug('Cleaning up temporary directory %s', tmpdir)
@@ -155,7 +154,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
 
 if __name__ == '__main__':
-    ret = 1
+    return_value = 1
     parser = argparse.ArgumentParser(description='Ceph Collect: Gather '
                                                  'information from a Ceph '
                                                  'cluster for support desks')
@@ -184,8 +183,8 @@ if __name__ == '__main__':
         collect_ceph_information(r=cnx, ceph_config=args.ceph_config,
                                  output_directory=args.output_dir,
                                  timeout=args.timeout, cleanup=args.cleanup)
-        ret = 0
+        return_value = 0
     except Exception as exc:
         LOGGER.error(exc)
 
-    sys.exit(ret)
+    sys.exit(return_value)
