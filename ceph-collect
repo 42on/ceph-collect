@@ -109,49 +109,56 @@ def get_pg_info(r, timeout):
 def collect_ceph_information(r, output_directory, timeout, cleanup=True):
     tmpdir = tempfile.mkdtemp()
 
-    LOGGER.debug('Using temporary directory: %s', tmpdir)
+    LOGGER.debug('Using temporary directory %s', tmpdir)
+
+    files = dict()
 
     LOGGER.info('Gathering overall Ceph information')
-    write_file('{0}/status'.format(tmpdir), ceph_mon_command(r, 'status',
-                                                             timeout))
-    write_file('{0}/version'.format(tmpdir), str(r.version()) + '\n')
-    write_file('{0}/fsid'.format(tmpdir), str(r.get_fsid()) + '\n')
+    files['status'.format(tmpdir)] = ceph_mon_command(r, 'status',
+                                                             timeout)
+    files['version'.format(tmpdir)] = str(r.version()) + '\n'
+    files['fsid'.format(tmpdir)] = str(r.get_fsid()) + '\n'
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout).items():
-        write_file('{0}/health_{1}'.format(tmpdir, key), item)
+        files['health_{0}'.format(key)] = item
 
     LOGGER.info('Gathering MON information')
     for key, item in get_mon_info(r, timeout).items():
-        write_file('{0}/mon_{1}'.format(tmpdir, key), item)
+        files['mon_{0}'.format(key)] = item
 
     LOGGER.info('Gathering OSD information')
     for key, item in get_osd_info(r, timeout).items():
-        write_file('{0}/osd_{1}'.format(tmpdir, key), item)
+        files['osd_{0}'.format(key)] = item
 
     LOGGER.info('Gathering PG information')
     for key, item in get_pg_info(r, timeout).items():
-        write_file('{0}/pg_{1}'.format(tmpdir, key), item)
+        files['pg_{0}'.format(key)] = item
 
     LOGGER.info('Gathering MDS information')
     for key, item in get_mds_info(r, timeout).items():
-        write_file('{0}/mds_{1}'.format(tmpdir, key), item)
+        files['mds_{0}'.format(key)] = item
 
     timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
-    tarball = '{0}/ceph-collect_{1}.tar'.format(output_directory, timestr)
+    tarball = '{0}/ceph-collect_{1}.tar.gz'.format(output_directory, timestr)
 
-    with tarfile.open(tarball, 'w') as tar:
-        tar.add(tmpdir)
+    with tarfile.open(tarball, 'w:gz') as tar:
+        for filename, content in files.items():
+            tmpfile = '{0}/{1}'.format(tmpdir, filename)
+            LOGGER.debug('Writing file %s', tmpfile)
+            write_file(tmpfile, content)
+            tar.add(name=tmpfile,
+                    arcname='ceph-collect_{0}/{1}'.format(timestr, filename))
 
     tar.close()
 
     LOGGER.info('Outputted Ceph information to {0}'.format(tarball))
 
     if cleanup:
-        LOGGER.debug('Cleaning up temporary directory: %s', tmpdir)
+        LOGGER.debug('Cleaning up temporary directory %s', tmpdir)
         shutil.rmtree(tmpdir)
     else:
-        LOGGER.debug('Not cleaning up temporary directory: %s', tmpdir)
+        LOGGER.debug('Not cleaning up temporary directory %s', tmpdir)
 
 
 if __name__ == '__main__':
