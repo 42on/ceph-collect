@@ -1,7 +1,9 @@
 # Ceph Collect
-The 'ceph-collect' tool is used by 42on to gather diagnostic information from a Ceph cluster.
+The *ceph-collect* tool is used by [42on](http://www.42on.com/) to gather diagnostic information from a Ceph cluster.
 
 The output from the tool is used to assist customers in case of questions, support or emergency situations.
+
+The tarball the tool creates contains vital information for our engineers to support our customers.
 
 # Usage
 The first step is to download the tool from [Github](https://github.com/42on/ceph-collect).
