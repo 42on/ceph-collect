@@ -38,9 +38,30 @@ When the requirements are met, simply run the *ceph-collect* tool:
 
 ``./ceph-collect``
 
-Allow the tool to run for about 5 minutes to gather all the required information.
+Usually the tool finishes within a few seconds, but if a Ceph cluster is experiencing issues it might take up to 5 minutes.
+
+The output it will print while running:
+
+
+```
+root@mon01:~# ./ceph-collect --debug
+DEBUG:root:Using Ceph configuration file: /etc/ceph/ceph.conf
+DEBUG:root:Setting client_mount_timeout to: 10
+DEBUG:root:Connecting to Ceph cluster
+DEBUG:root:Using temporary directory: /tmp/tmpMpFk3n
+INFO:root:Gathering overall Ceph information
+INFO:root:Gathering Health information
+INFO:root:Gathering MON information
+INFO:root:Gathering OSD information
+INFO:root:Gathering PG information
+INFO:root:Gathering MDS information
+INFO:root:Outputted Ceph information to /tmp/ceph-collect_20160729_150304.tar
+DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
+root@mon01:~#
+```
+
 
 ## Output
 After the tool finishes a tarball will be placed in */tmp* containing all the information.
 
-Send this tarball to [info@42on.com](mailto:info@42on.com)
+Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
