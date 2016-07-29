@@ -28,17 +28,6 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 LOGGER = logging.getLogger()
 
 
-# Exceptions
-class Error(Exception):
-    """Base Exception for all other exceptions"""
-    pass
-
-
-class ConfigError(Error):
-    """Exception for configuration errors"""
-    pass
-
-
 # Functions to gather Ceph information
 def write_file(filename, content):
     with open(filename, 'w') as f:
@@ -196,7 +185,7 @@ if __name__ == '__main__':
                                  output_directory=args.output_dir,
                                  timeout=args.timeout, cleanup=args.cleanup)
         ret = 0
-    except ConfigError as exc:
+    except Exception as exc:
         LOGGER.error(exc)
 
     sys.exit(ret)
