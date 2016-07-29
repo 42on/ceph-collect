@@ -4,6 +4,9 @@ ceph-collect is a tool used by 42on to gather information from a Ceph cluster
 in case of support or emergency assistance.
 
 The tool gathers information from the Ceph cluster and creates a tarball in /tmp
+
+Author: Wido den Hollander <wido@42on.com>
+License: GPL2
 """
 
 import argparse
