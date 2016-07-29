@@ -57,7 +57,7 @@ INFO:root:Gathering MON information
 INFO:root:Gathering OSD information
 INFO:root:Gathering PG information
 INFO:root:Gathering MDS information
-INFO:root:Outputted Ceph information to /tmp/ceph-collect_20160729_150304.tar
+INFO:root:Outputted Ceph information to /tmp/ceph-collect_20160729_150304.tar.gz
 DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
@@ -66,4 +66,13 @@ root@mon01:~#
 ## Output
 After the tool finishes a tarball will be placed in */tmp* containing all the information.
 
+This tarball should be just a few kilobytes in size.
+
+For example: */tmp/ceph-collect_20160729_150304.tar.gz*
+
 Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
+
+# License
+This tool was written by [42on](http://www.42on.com/) to help Ceph customers quickly.
+
+The tool is free to use for all other purposes. It's licensed GPLv2, so please send changes back to us!
