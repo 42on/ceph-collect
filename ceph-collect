@@ -34,6 +34,11 @@ def write_file(filename, content):
         f.write(content)
 
 
+def read_file(filename):
+    with open(filename, 'r') as f:
+        return f.read()
+
+
 def get_rados_connection(ceph_config, timeout):
     LOGGER.debug('Using Ceph configuration file: %s', ceph_config)
     r = rados.Rados(conffile=ceph_config)
@@ -96,6 +101,10 @@ def get_pg_info(r, timeout):
     return info
 
 
+def get_ceph_config(ceph_config):
+    return read_file(ceph_config)
+
+
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
                              cleanup=True):
     tmpdir = tempfile.mkdtemp()
@@ -108,6 +117,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['status'] = ceph_mon_command(r, 'status', timeout)
     files['version'] = str(r.version()) + '\n'
     files['fsid'] = str(r.get_fsid()) + '\n'
+    files['ceph.conf'] = str(get_ceph_config(ceph_config))
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout).items():
@@ -139,9 +149,6 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             write_file(tmpfile, content)
             tar.add(name=tmpfile,
                     arcname='ceph-collect_{0}/{1}'.format(timestr, filename))
-
-        tar.add(name=ceph_config,
-                arcname='ceph-collect_{0}/{1}'.format(timestr, 'ceph.conf'))
 
     tar.close()
 
