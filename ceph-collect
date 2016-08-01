@@ -30,16 +30,32 @@ LOGGER = logging.getLogger()
 
 # Functions to gather Ceph information
 def write_file(filename, content):
-    with open(filename, 'w') as f:
-        f.write(content)
+    """
+    :param filename: File to write to
+    :param content: Content to write to file
+    :return: True on succes
+    """
+    with open(filename, 'w') as file_handle:
+        file_handle.write(content)
+        return True
 
 
 def read_file(filename):
-    with open(filename, 'r') as f:
-        return f.read()
+    """
+    :param filename: File to read contents from
+    :return: File contents as a String
+    """
+    with open(filename, 'r') as file_handle:
+        return file_handle.read()
 
 
 def get_rados_connection(ceph_config, timeout):
+    """
+    Create a connection with a Ceph cluster
+    :param ceph_config: Path to ceph.conf file
+    :param timeout: Seconds for timeouts on Ceph operations
+    :return: Rados connection
+    """
     LOGGER.debug('Using Ceph configuration file: %s', ceph_config)
     r = rados.Rados(conffile=ceph_config)
 
@@ -162,37 +178,41 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
 
 if __name__ == '__main__':
-    return_value = 1
-    parser = argparse.ArgumentParser(description='Ceph Collect: Gather '
+    RETURN_VALUE = 1
+    PARSER = argparse.ArgumentParser(description='Ceph Collect: Gather '
                                                  'information from a Ceph '
                                                  'cluster for support desks')
-    parser.add_argument('--ceph-config', action='store', dest='ceph_config',
+    PARSER.add_argument('--ceph-config', action='store', dest='ceph_config',
                         default=CEPH_CONFIG_FILE,
                         help='Ceph Configuration file')
-    parser.add_argument('--output-dir', action='store', dest='output_dir',
+    PARSER.add_argument('--output-dir', action='store', dest='output_dir',
                         default=tempfile.gettempdir(),
                         help='Directory to store output in')
-    parser.add_argument('--timeout', action='store', type=int,
+    PARSER.add_argument('--timeout', action='store', type=int,
                         dest='timeout',
                         default=CEPH_TIMEOUT,
                         help='Timeout for Ceph operations')
-    parser.add_argument('--debug', action='store_true', dest='debug',
+    PARSER.add_argument('--debug', action='store_true', dest='debug',
                         default=False, help='Debug logging')
-    parser.add_argument('--no-cleanup', action='store_false', dest='cleanup',
+    PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
                         default=True, help='Clean up temporary directory')
-    args = parser.parse_args()
+    ARGS = PARSER.parse_args()
 
-    if args.debug:
+    if ARGS.debug:
         LOGGER.setLevel(logging.DEBUG)
 
     try:
-        cnx = get_rados_connection(ceph_config=args.ceph_config,
-                                   timeout=args.timeout)
-        collect_ceph_information(r=cnx, ceph_config=args.ceph_config,
-                                 output_directory=args.output_dir,
-                                 timeout=args.timeout, cleanup=args.cleanup)
-        return_value = 0
-    except Exception as exc:
+        CNX = get_rados_connection(ceph_config=ARGS.ceph_config,
+                                   timeout=ARGS.timeout)
+        collect_ceph_information(r=CNX, ceph_config=ARGS.ceph_config,
+                                 output_directory=ARGS.output_dir,
+                                 timeout=ARGS.timeout, cleanup=ARGS.cleanup)
+        RETURN_VALUE = 0
+    except (rados.Error,
+            tarfile.TarError,
+            IOError,
+            KeyError,
+            ValueError) as exc:
         LOGGER.error(exc)
 
-    sys.exit(return_value)
+    sys.exit(RETURN_VALUE)
