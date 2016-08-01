@@ -16,7 +16,7 @@ git clone https://github.com/42on/ceph-collect
 cd ceph-collect
 ```
 
-
+## Fetch from Github
 ```
 curl -SL -o ceph-collect https://raw.githubusercontent.com/42on/ceph-collect/master/ceph-collect
 chmod +x ceph-collect
@@ -67,6 +67,12 @@ DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
 
+### One-liner
+If you want to run this tool without downloading it, you can run it directly using this one-liner:
+
+``curl -SL https://raw.githubusercontent.com/42on/ceph-collect/master/ceph-collect|python``
+
+It will not save the tool on disk, it just runs the Python code and saves the output in */tmp*.
 
 ## Output
 After the tool finishes a tarball will be placed in */tmp* containing all the information.
