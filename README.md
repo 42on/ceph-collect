@@ -35,6 +35,11 @@ You can test this by running:
 
 This should output either *HEALTH_OK*, *HEALTH_WARN* or *HEALTH_ERR*.
 
+## Where to run
+This tool should be run on a machine which is able to connect to the Ceph cluster and has the *client.admin* keyring.
+
+In most of the situations the *monitors* are the right location to run this tool.
+
 ## Running
 When the requirements are met, simply run the *ceph-collect* tool:
 
