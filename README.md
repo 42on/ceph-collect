@@ -5,6 +5,8 @@ The output from the tool is used to assist customers in case of questions, suppo
 
 The tarball the tool creates contains vital information for our engineers to support our customers.
 
+This tool does **NOT** collect any user (object) data contents nor authentication credentials from a Ceph cluster.
+
 # Usage
 The first step is to download the tool from [Github](https://github.com/42on/ceph-collect).
 
