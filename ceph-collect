@@ -18,6 +18,7 @@ import tempfile
 import tarfile
 import rados
 import json
+import subprocess
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
@@ -66,6 +67,15 @@ def get_rados_connection(ceph_config, timeout):
     r.connect(timeout=timeout)
 
     return r
+
+
+def spawn(command, shell=True):
+    """
+    Simply spawn a process and return the output
+    """
+    p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=shell)
+    (result, err) = p.communicate()
+    return result.strip()
 
 
 def ceph_mon_command(r, command, timeout, output_format='plain'):
@@ -131,7 +141,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout)
-    files['version'] = str(r.version()) + '\n'
+    files['version'] = spawn('ceph -v') + '\n'
     files['fsid'] = str(r.get_fsid()) + '\n'
     files['ceph.conf'] = str(get_ceph_config(ceph_config))
 
