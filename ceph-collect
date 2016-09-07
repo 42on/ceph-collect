@@ -74,11 +74,14 @@ def spawn(command, shell=True):
     Simply spawn a process and return the output
     """
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=shell)
-    (result, err) = p.communicate()
+    (result, _) = p.communicate()
     return result.strip()
 
 
 def ceph_mon_command(r, command, timeout, output_format='plain'):
+    """
+    Using librados directly execute a command inside the Monitors
+    """
     cmd = {'prefix': command, 'format': output_format}
     _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
     return buf
