@@ -139,6 +139,10 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
     files = dict()
 
+    LOGGER.info('Gathering overall system information')
+    files['uname'] = spawn('uname -a') + '\n'
+    files['lsb_release'] = spawn('lsb_release -a') + '\n'
+
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout)
     files['version'] = spawn('ceph -v') + '\n'
