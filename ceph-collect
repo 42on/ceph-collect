@@ -111,6 +111,7 @@ def get_osd_info(r, timeout):
     info['stat'] = ceph_mon_command(r, 'osd stat', timeout)
     info['crushmap'] = ceph_mon_command(r, 'osd getcrushmap', timeout)
     info['map'] = ceph_mon_command(r, 'osd getmap', timeout)
+    info['metadata'] = ceph_mon_command(r, 'osd metadata', timeout)
     return info
 
 
