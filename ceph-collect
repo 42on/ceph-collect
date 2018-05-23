@@ -36,7 +36,7 @@ def write_file(filename, content):
     :param content: Content to write to file
     :return: True on succes
     """
-    with open(filename, 'w') as file_handle:
+    with open(filename, 'wb') as file_handle:
         file_handle.write(content)
         return True
 
@@ -146,12 +146,12 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files = dict()
 
     LOGGER.info('Gathering overall system information')
-    files['uname'] = spawn('uname -a') + '\n'
-    files['lsb_release'] = spawn('lsb_release -a') + '\n'
+    files['uname'] = spawn('uname -a') + b'\n'
+    files['lsb_release'] = spawn('lsb_release -a') + b'\n'
 
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout)
-    files['version'] = spawn('ceph -v') + '\n'
+    files['version'] = spawn('ceph -v') + b'\n'
     files['fsid'] = str(r.get_fsid()) + '\n'
     files['ceph.conf'] = str(get_ceph_config(ceph_config))
 
