@@ -16,9 +16,9 @@ import shutil
 import logging
 import tempfile
 import tarfile
-import rados
 import json
 import subprocess
+import rados
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
