@@ -92,6 +92,7 @@ def get_health_info(r, timeout):
     info['stat'] = ceph_mon_command(r, 'health', timeout)
     info['detail'] = ceph_mon_command(r, 'health detail', timeout)
     info['df'] = ceph_mon_command(r, 'df', timeout)
+    info['report'] = ceph_mon_command(r, 'report', timeout)
     return info
 
 
