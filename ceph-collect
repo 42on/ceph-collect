@@ -156,6 +156,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['features'] = ceph_mon_command(r, 'features', timeout)
     files['fsid'] = str(r.get_fsid()) + '\n'
     files['ceph.conf'] = str(get_ceph_config(ceph_config))
+    files['config'] = ceph_mon_command(r, 'config dump', timeout)
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout).items():
