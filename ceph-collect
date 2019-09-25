@@ -90,7 +90,6 @@ def ceph_mon_command(r, command, timeout, output_format='plain'):
 def get_health_info(r, timeout):
     info = dict()
     info['stat'] = ceph_mon_command(r, 'health', timeout)
-    info['detail'] = ceph_mon_command(r, 'health detail', timeout)
     info['df'] = ceph_mon_command(r, 'df', timeout)
     info['report'] = ceph_mon_command(r, 'report', timeout)
     return info
@@ -153,6 +152,8 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout)
     files['version'] = spawn('ceph -v') + b'\n'
+    files['versions'] = ceph_mon_command(r, 'versions', timeout)
+    files['features'] = ceph_mon_command(r, 'features', timeout)
     files['fsid'] = str(r.get_fsid()) + '\n'
     files['ceph.conf'] = str(get_ceph_config(ceph_config))
 
