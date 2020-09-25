@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 ceph-collect is a tool used by 42on to gather information from a Ceph cluster
 in case of support or emergency assistance.
@@ -18,7 +18,8 @@ import tempfile
 import tarfile
 import json
 import subprocess
-import rados
+
+
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
@@ -28,6 +29,15 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 LOGGER = logging.getLogger()
 
+try:
+    import rados
+except ImportError:
+    if sys.version_info[0] == 3:
+        LOGGER.error("rados module not found, try running with python2")
+        sys.exit(1)
+    else:
+        LOGGER.error("rados module not found, try running with python3")
+        sys.exit(1)
 
 # Functions to gather Ceph information
 def write_file(filename, content):
@@ -154,8 +164,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['version'] = spawn('ceph -v') + b'\n'
     files['versions'] = ceph_mon_command(r, 'versions', timeout, output_format)
     files['features'] = ceph_mon_command(r, 'features', timeout, output_format)
-    files['fsid'] = str(r.get_fsid()) + '\n'
-    files['ceph.conf'] = str(get_ceph_config(ceph_config))
+    ##Add if to get around python2/python3 dependencies etc.
+    if sys.version_info[0] == 3:
+        files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
+        files['ceph.conf'] = bytes(get_ceph_config(ceph_config), 'utf-8')
+    else:
+        files['fsid'] = str(r.get_fsid()) + '\n'
+        files['ceph.conf'] = str(get_ceph_config(ceph_config))
     files['config'] = ceph_mon_command(r, 'config dump', timeout, output_format)
 
     LOGGER.info('Gathering Health information')
@@ -185,6 +200,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         for filename, content in files.items():
             tmpfile = '{0}/{1}'.format(tmpdir, filename)
             LOGGER.debug('Writing file %s', tmpfile)
+            #write_file(tmpfile, bytes(content, 'utf-8'))
             write_file(tmpfile, content)
             tar.add(name=tmpfile,
                     arcname='ceph-collect_{0}/{1}'.format(timestr, filename))
@@ -241,4 +257,3 @@ if __name__ == '__main__':
         LOGGER.error(exc)
 
     sys.exit(RETURN_VALUE)
-
