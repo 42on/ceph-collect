@@ -46,11 +46,11 @@ In most of the situations the *monitors* are the right location to run this tool
 When the requirements are met, simply run the *ceph-collect* tool:
 The ceph-collect script is compatible with python versions 2 and 3. Ceph itself is not compatible with both versions.
 
-###Octopus and newer:
+### Octopus and newer:
 
 ``./ceph-collect``
 
-###Nautilus and older:
+### Nautilus and older:
 
 ``python2 ./ceph-collect``
 
