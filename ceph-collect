@@ -147,11 +147,21 @@ def get_pg_info(r, timeout, output_format):
 def get_device_info(r, timeout, output_format):
     info = dict()
     info['check_health'] = ceph_mon_command(r, 'device check-health', timeout, output_format)
-    device_list = json.loads(ceph_mon_command(r, 'device ls', timeout, 'json'))
-    for device in device_list:
-        metrics =  ceph_mon_command(r, 'device get-health-metrics' , timeout, output_format, devid=device['devid'])
-        device['metrics'] = json.loads(metrics)
-    info['status'] = json.dumps( device_list, sort_keys=True, indent=4).encode('utf-8')
+    device_list_str = ceph_mon_command(r, 'device ls', timeout, 'json')
+    if device_list_str:
+        device_list = json.loads(device_list_str)
+        for device in device_list:
+            metrics_str =  ceph_mon_command(r, 'device get-health-metrics' , timeout, output_format, devid=device['devid'])
+            device['metrics'] = {}
+            if metrics_str:
+                metrics = json.loads(metrics_str)
+                metrics_keys = [k for k in metrics.keys()]
+                metrics_keys.sort()
+                for key in metrics_keys[-1:]:
+                    device['metrics'][key] = metrics[key]
+        info['status'] = json.dumps( device_list, sort_keys=True, indent=4).encode('utf-8')
+    else:
+        info['status'] = ''
     return info
 
 def get_ceph_config(ceph_config):
