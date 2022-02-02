@@ -13,6 +13,7 @@ import argparse
 import datetime
 import sys
 import shutil
+import hashlib
 import logging
 import tempfile
 import tarfile
@@ -132,11 +133,13 @@ def get_osd_info(r, timeout, output_format):
 def get_mds_info(r, timeout, output_format):
     info = dict()
     info['dump'] = ceph_mon_command(r, 'mds dump', timeout, output_format)
-    info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
-    info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
+    if not info['dump']:
+        info['dump'] = ceph_mon_command(r, 'fs dump', timeout, output_format)
+    else:
+        info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
+        info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
-
-
+    
 def get_pg_info(r, timeout, output_format):
     info = dict()
     info['stat'] = ceph_mon_command(r, 'pg stat', timeout, output_format)
@@ -167,6 +170,15 @@ def get_device_info(r, timeout, output_format):
 def get_ceph_config(ceph_config):
     return read_file(ceph_config)
 
+def get_general_information (r, timeout, output_format):
+    info= {}
+    info['date'] = spawn('date -Iseconds').decode('ascii')
+    with open(sys.argv[0],"rb") as f:
+        bytes = f.read() # read entire file as bytes
+        readable_hash = hashlib.sha256(bytes).hexdigest()
+        info['sha256'] = readable_hash
+
+    return json.dumps(info, indent=4, sort_keys=True).encode('UTF-8')
 
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
                              output_format, cleanup=True, device_health=False):
@@ -179,12 +191,14 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     LOGGER.info('Gathering overall system information')
     files['uname'] = spawn('uname -a') + b'\n'
     files['lsb_release'] = spawn('lsb_release -a') + b'\n'
+    files['informations'] = get_general_information (r, timeout, output_format)
 
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout, output_format)
     files['version'] = spawn('ceph -v') + b'\n'
     files['versions'] = ceph_mon_command(r, 'versions', timeout, output_format)
     files['features'] = ceph_mon_command(r, 'features', timeout, output_format)
+    
     ##Add if to get around python2/python3 dependencies etc.
     if sys.version_info[0] == 3:
         files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
