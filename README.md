@@ -75,6 +75,10 @@ INFO:root:Outputted Ceph information to /tmp/ceph-collect_20160729_150304.tar.gz
 DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
+### Gathering Device Health information
+By default  ``ceph-collect`` doesn't collect the device's health information. Use ``--device-health-metrics`` to enable it.
+
+``ceph-collect --device-heath-metrics``
 
 ### One-liner
 If you want to run this tool without downloading it, you can run it directly using this one-liner:
