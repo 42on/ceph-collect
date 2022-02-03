@@ -114,8 +114,8 @@ def ceph_mon_command(r, command, timeout, output_format, **kwargs):
     """
 
     cmd = kwargs.copy()
-    cmd['prefix'] =  command
-    cmd['format'] =  output_format
+    cmd['prefix'] = command
+    cmd['format'] = output_format
     _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
     return buf
 
