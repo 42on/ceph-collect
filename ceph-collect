@@ -129,9 +129,19 @@ def get_osd_info(r, timeout, output_format):
 
 def get_mds_info(r, timeout, output_format):
     info = dict()
+    info['metadata'] = ceph_mon_command(r, 'mds metadata', timeout, output_format)
     info['dump'] = ceph_mon_command(r, 'mds dump', timeout, output_format)
-    info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
-    info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
+    if not info['dump']:
+        # New ceph version
+        LOGGER.debug("Gathering MDS: Luminous or newer version")
+        info['dump'] = ceph_mon_command(r, 'fs dump', timeout, output_format)
+        # The standard output format is colorized, force to 'json-pretty'
+        info['status'] = ceph_mon_command(r, 'fs status', timeout, 'json-pretty')
+    else:
+        # Old ceph version
+        LOGGER.debug("Gathering MDS: Mimic or previous version")
+        info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
+        info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
 
 
