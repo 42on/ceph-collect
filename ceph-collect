@@ -91,7 +91,7 @@ def spawn(command, shell=True):
 def ceph_mon_command(r, command, timeout, output_format, **kwargs):
     """
     Using librados directly execute a command inside the Monitors.
-    
+
     Args:
         :param r:
             The rados object connect to the cluster
@@ -99,21 +99,20 @@ def ceph_mon_command(r, command, timeout, output_format, **kwargs):
         :param command:
             The command to be exected by the Mon
         :type command: ``str``
-        :param timeout: 
+        :param timeout:
             The timeout for the request
         :type  timeour: ``str``
         :param output_format:
         :type output_format: ``str``
 
         :param \**kwargs:
-            the arguments to pass to the mon command 
-    
+            the arguments to pass to the mon command
+
     Example:
         # 'ceph device get-health-metrics 130c0631-fa78-4697-9"
         ceph_mon_command(r,"device get-health-metrics", dev_id="130c0631-fa78-4697-9")
     """
 
-    
     cmd = kwargs.copy()
     cmd['prefix'] =  command
     cmd['format'] =  output_format
@@ -217,7 +216,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['version'] = spawn('ceph -v') + b'\n'
     files['versions'] = ceph_mon_command(r, 'versions', timeout, output_format)
     files['features'] = ceph_mon_command(r, 'features', timeout, output_format)
-    
+
     ##Add if to get around python2/python3 dependencies etc.
     if sys.version_info[0] == 3:
         files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
