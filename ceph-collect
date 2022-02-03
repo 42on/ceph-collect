@@ -167,12 +167,14 @@ def get_mds_info(r, timeout, output_format):
         info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
 
+
 def get_pg_info(r, timeout, output_format):
     info = dict()
     info['stat'] = ceph_mon_command(r, 'pg stat', timeout, output_format)
     info['dump'] = ceph_mon_command(r, 'pg dump', timeout, output_format)
     info['dump_stuck'] = ceph_mon_command(r, 'pg dump_stuck', timeout, output_format)
     return info
+
 
 def get_device_info(r, timeout, output_format):
     info = dict()
@@ -194,6 +196,7 @@ def get_device_info(r, timeout, output_format):
         LOGGER.info('Device health info is enabled, but it seems not supported by this ceph version')
         info['status'] = b''
     return info
+
 
 def get_ceph_config(ceph_config):
     return read_file(ceph_config)
@@ -271,6 +274,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         shutil.rmtree(tmpdir)
     else:
         LOGGER.debug('Not cleaning up temporary directory %s', tmpdir)
+
 
 if __name__ == '__main__':
     RETURN_VALUE = 1
