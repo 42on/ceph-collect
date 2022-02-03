@@ -293,10 +293,10 @@ if __name__ == '__main__':
                         default=False, help='Debug logging')
     PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
                         default=True, help='Clean up temporary directory')
-    PARSER.add_argument('--device-health-metrics', action='store_true',                       
-                        dest='device_health_metrics', default=False, 
+    PARSER.add_argument('--device-health-metrics', action='store_true',
+                        dest='device_health_metrics', default=False,
                         help='Enable the collection of device health information')
-                    
+
     ARGS = PARSER.parse_args()
 
     if ARGS.debug:
