@@ -88,11 +88,13 @@ def spawn(command, shell=True):
     return result.strip()
 
 
-def ceph_mon_command(r, command, timeout, output_format):
+def ceph_mon_command(r, command, timeout, output_format, **kargs):
     """
     Using librados directly execute a command inside the Monitors
     """
-    cmd = {'prefix': command, 'format': output_format}
+    cmd = kargs.copy()
+    cmd['prefix'] =  command
+    cmd['format'] =  output_format
     _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
     return buf
 
@@ -129,11 +131,9 @@ def get_osd_info(r, timeout, output_format):
 
 def get_mds_info(r, timeout, output_format):
     info = dict()
-    info['dump'] = ceph_mon_command(r, 'mds dump', timeout, output_format)
     info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
     info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
-
 
 def get_pg_info(r, timeout, output_format):
     info = dict()
@@ -142,13 +142,32 @@ def get_pg_info(r, timeout, output_format):
     info['dump_stuck'] = ceph_mon_command(r, 'pg dump_stuck', timeout, output_format)
     return info
 
+def get_device_info(r, timeout, output_format):
+    info = dict()
+    info['check_health'] = ceph_mon_command(r, 'device check-health', timeout, output_format)
+    device_list_str = ceph_mon_command(r, 'device ls', timeout, 'json')
+    if device_list_str:
+        device_list = json.loads(device_list_str)
+        for device in device_list:
+            metrics_str =  ceph_mon_command(r, 'device get-health-metrics' , timeout, output_format, devid=device['devid'])
+            device['metrics'] = {}
+            if metrics_str:
+                metrics = json.loads(metrics_str)
+                metrics_keys = [k for k in metrics.keys()]
+                metrics_keys.sort()
+                for key in metrics_keys[-1:]:
+                    device['metrics'][key] = metrics[key]
+        info['status'] = json.dumps( device_list, sort_keys=True, indent=4).encode('utf-8')
+    else:
+        info['status'] = ''
+    return info
 
 def get_ceph_config(ceph_config):
     return read_file(ceph_config)
 
 
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
-                             output_format, cleanup=True):
+                             output_format, cleanup=True, device_health=False):
     tmpdir = tempfile.mkdtemp()
 
     LOGGER.debug('Using temporary directory %s', tmpdir)
@@ -164,6 +183,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['version'] = spawn('ceph -v') + b'\n'
     files['versions'] = ceph_mon_command(r, 'versions', timeout, output_format)
     files['features'] = ceph_mon_command(r, 'features', timeout, output_format)
+    
     ##Add if to get around python2/python3 dependencies etc.
     if sys.version_info[0] == 3:
         files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
@@ -192,6 +212,10 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     LOGGER.info('Gathering MDS information')
     for key, item in get_mds_info(r, timeout, output_format).items():
         files['mds_{0}'.format(key)] = item
+    if device_health:
+        LOGGER.info('Gathering Device Health information')
+        for key, item in get_device_info (r, timeout, output_format).items():
+            files['device_{0}'.format(key)] = item
 
     timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
     tarball = '{0}/ceph-collect_{1}.tar.gz'.format(output_directory, timestr)
@@ -236,6 +260,8 @@ if __name__ == '__main__':
                         default=False, help='Debug logging')
     PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
                         default=True, help='Clean up temporary directory')
+    PARSER.add_argument('--device-health-metrics', action='store_true',
+                        dest='device_health_metrics', default=False, help='Enable the collection of device health information')
     ARGS = PARSER.parse_args()
 
     if ARGS.debug:
@@ -247,6 +273,7 @@ if __name__ == '__main__':
         collect_ceph_information(r=CNX, ceph_config=ARGS.ceph_config,
                                  output_directory=ARGS.output_dir,
                                  timeout=ARGS.timeout, cleanup=ARGS.cleanup,
+                                 device_health=ARGS.device_health_metrics,
                                  output_format=ARGS.output_format)
         RETURN_VALUE = 0
     except (rados.Error,
