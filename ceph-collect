@@ -101,7 +101,7 @@ def ceph_mon_command(r, command, timeout, output_format, **kwargs):
         :type command: ``str``
         :param timeout:
             The timeout for the request
-        :type  timeout: ``str``
+        :type  timeout: ``int``
         :param output_format:
         :type output_format: ``str``
 
