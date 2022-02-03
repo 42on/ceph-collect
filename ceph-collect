@@ -131,6 +131,7 @@ def get_osd_info(r, timeout, output_format):
 
 def get_mds_info(r, timeout, output_format):
     info = dict()
+    info['dump'] = ceph_mon_command(r, 'mds dump', timeout, output_format)
     info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
     info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
