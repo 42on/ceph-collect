@@ -76,7 +76,7 @@ DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
 ### Gathering Device Health information
-By default  ``ceph-collect`` doesn't collect the device's health information. Use ``--device-health-metrics`` to enabled it.
+By default  ``ceph-collect`` doesn't collect the device's health information. Use ``--device-health-metrics`` to enable it.
 
 ``ceph-collect --device-heath-metrics``
 

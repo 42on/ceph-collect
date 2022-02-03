@@ -88,11 +88,33 @@ def spawn(command, shell=True):
     return result.strip()
 
 
-def ceph_mon_command(r, command, timeout, output_format, **kargs):
+def ceph_mon_command(r, command, timeout, output_format, **kwargs):
     """
-    Using librados directly execute a command inside the Monitors
+    Using librados directly execute a command inside the Monitors.
+    
+    Args:
+        :param r:
+            The rados object connect to the cluster
+        :type r: ``rados.Rados``
+        :param command:
+            The command to be exected by the Mon
+        :type command: ``str``
+        :param timeout: 
+            The timeout for the request
+        :type  timeour: ``str``
+        :param output_format:
+        :type output_format: ``str``
+
+        :param \**kwargs:
+            the arguments to pass to the mon command 
+    
+    Example:
+        # 'ceph device get-health-metrics 130c0631-fa78-4697-9"
+        ceph_mon_command(r,"device get-health-metrics", dev_id="130c0631-fa78-4697-9")
     """
-    cmd = kargs.copy()
+
+    
+    cmd = kwargs.copy()
     cmd['prefix'] =  command
     cmd['format'] =  output_format
     _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
@@ -131,9 +153,17 @@ def get_osd_info(r, timeout, output_format):
 
 def get_mds_info(r, timeout, output_format):
     info = dict()
+    info['metadata'] = ceph_mon_command(r, 'mds metadata', timeout, output_format)
     info['dump'] = ceph_mon_command(r, 'mds dump', timeout, output_format)
-    info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
-    info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
+    if not info['dump']:
+        # New ceph version
+        info['dump'] = ceph_mon_command(r, 'fs dump', timeout, output_format)
+        # The standard output format is colorized, force to 'json-pretty'
+        info['status'] = ceph_mon_command(r, 'fs status', timeout, 'json-pretty')
+    else:
+        # Old ceph version
+        info['stat'] = ceph_mon_command(r, 'mds stat', timeout, output_format)
+        info['map'] = ceph_mon_command(r, 'mds getmap', timeout, output_format)
     return info
 
 def get_pg_info(r, timeout, output_format):
@@ -160,7 +190,8 @@ def get_device_info(r, timeout, output_format):
                     device['metrics'][key] = metrics[key]
         info['status'] = json.dumps( device_list, sort_keys=True, indent=4).encode('utf-8')
     else:
-        info['status'] = ''
+        LOGGER.info('Device health info is enabled, but it seems not supported by this ceph version')
+        info['status'] = b''
     return info
 
 def get_ceph_config(ceph_config):
@@ -261,8 +292,10 @@ if __name__ == '__main__':
                         default=False, help='Debug logging')
     PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
                         default=True, help='Clean up temporary directory')
-    PARSER.add_argument('--device-health-metrics', action='store_true',
-                        dest='device_health_metrics', default=False, help='Enable the collection of device health information')
+    PARSER.add_argument('--device-health-metrics', action='store_true',                       
+                        dest='device_health_metrics', default=False, 
+                        help='Enable the collection of device health information')
+                    
     ARGS = PARSER.parse_args()
 
     if ARGS.debug:
