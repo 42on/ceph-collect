@@ -251,7 +251,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
     if device_health:
         LOGGER.info('Gathering Device Health information')
-        for key, item in get_device_info (r, timeout, output_format).items():
+        for key, item in get_device_info(r, timeout, output_format).items():
             files['device_{0}'.format(key)] = item
 
     timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
