@@ -235,10 +235,10 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
             lines=data.splitlines()
             for patter in config_filters:
-                lines=filter (
-                    lambda x: not bool(re.search(patter, x)),
-                    lines
-                )
+                for index in range(len(lines)-1,-1,-1):
+                    if bool(re.search(patter, lines[index])):
+                        del lines[index]
+                        break
             data='\n'.join(lines)
 
         elif mode in ('json', 'json-pretty'):
