@@ -19,11 +19,17 @@ import tarfile
 import json
 import subprocess
 
+import re
 
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
 
+DEFAULT_CONFIG_FILTERS = [
+    'password',
+    'key',
+    'cert'
+]
 # Logging configuration
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -192,7 +198,7 @@ def get_device_info(r, timeout, output_format):
                 metrics_keys.sort()
                 for key in metrics_keys[-1:]:
                     device['metrics'][key] = metrics[key]
-        info['status'] = json.dumps( device_list, sort_keys=True, indent=4).encode('utf-8')
+        info['status'] = json.dumps(device_list, sort_keys=True, indent=4).encode('utf-8')
     else:
         LOGGER.info('Device health info is enabled, but it seems not supported by this ceph version')
         info['status'] = b''
@@ -204,7 +210,55 @@ def get_ceph_config(ceph_config):
 
 
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
-                             output_format, cleanup=True, device_health=False):
+                             output_format, cleanup=True, device_health=False,
+                             custom_config_filters=[]):
+    def filter_config(data, mode):
+        """
+        It purges the configuration
+        Args:
+            :param data:
+                configuraration data
+            :type data: ``str``
+            :param mode:
+                mode can be:
+                    * 'plain' 
+                    * 'json'   
+            :type mode: ``str``
+        Return:
+            bytes
+        
+        """
+        config_filters=DEFAULT_CONFIG_FILTERS
+        config_filters.extend(custom_config_filters) 
+        if mode == 'plain':
+            if type(data) == bytes:
+                data=data.decode('utf-8')
+
+            lines=data.splitlines()
+            for patter in config_filters:
+                for index in range(len(lines)-1,-1,-1):
+                    if bool(re.search(patter, lines[index])):
+                        del lines[index]
+            data='\n'.join(lines)
+
+        elif mode in ('json', 'json-pretty'):
+            js= json.loads(data)
+            for patter in config_filters:
+                for index in range(len(js)-1 ,-1, -1):
+                    for key in ('name', 'section', 'value'):
+                        if bool(re.search(patter, js[index][key])):
+                            del js[index]
+                            break
+            if mode == 'json':
+                data = json.dumps(js)
+            else:
+                data = json.dumps(js, sort_keys=True, indent=4)   
+        else:    
+            LOGGER.error("Unsupported output mode")
+            sys.exit(1) 
+
+        return data.encode('utf-8')
+
     tmpdir = tempfile.mkdtemp()
 
     LOGGER.debug('Using temporary directory %s', tmpdir)
@@ -224,11 +278,22 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     ##Add if to get around python2/python3 dependencies etc.
     if sys.version_info[0] == 3:
         files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
-        files['ceph.conf'] = bytes(get_ceph_config(ceph_config), 'utf-8')
+        files['ceph.conf'] = filter_config(
+                get_ceph_config(ceph_config), 
+                'plain'
+        )
     else:
         files['fsid'] = str(r.get_fsid()) + '\n'
-        files['ceph.conf'] = str(get_ceph_config(ceph_config))
-    files['config'] = ceph_mon_command(r, 'config dump', timeout, output_format)
+        files['ceph.conf'] = str(
+            filter_config(
+                get_ceph_config(ceph_config), 
+                'plain'
+            )
+        )
+    files['config'] = filter_config(
+        ceph_mon_command(r, 'config dump', timeout, output_format),
+        output_format
+    )
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout, output_format).items():
@@ -302,7 +367,10 @@ if __name__ == '__main__':
     PARSER.add_argument('--device-health-metrics', action='store_true',
                         dest='device_health_metrics', default=False,
                         help='Enable the collection of device health information')
-
+    PARSER.add_argument('--config-filter', action='append',
+                        dest='custom_config_filter',
+                        help='Custom filter (python regex) for purging config dump. '
+                        )
     ARGS = PARSER.parse_args()
 
     if ARGS.debug:
@@ -315,6 +383,7 @@ if __name__ == '__main__':
                                  output_directory=ARGS.output_dir,
                                  timeout=ARGS.timeout, cleanup=ARGS.cleanup,
                                  device_health=ARGS.device_health_metrics,
+                                 custom_config_filters=ARGS.custom_config_filter or [],
                                  output_format=ARGS.output_format)
         RETURN_VALUE = 0
     except (rados.Error,
