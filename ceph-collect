@@ -26,10 +26,12 @@ CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
 
 DEFAULT_CONFIG_FILTERS = [
-    'password',
-    'key',
-    'cert'
+    '(?i)password',
+    '(?i)key',
+    '(?i)cert'
 ]
+FILTER_PLACEHOLDER = "** HIDDEN **"
+
 # Logging configuration
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -210,8 +212,12 @@ def get_ceph_config(ceph_config):
 
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
                              output_format, cleanup=True, device_health=False,
-                             custom_config_filters=[]):
-    def filter_config(data, mode):
+                            custom_config_filters=[],log_config=False):
+    
+    config_filters=DEFAULT_CONFIG_FILTERS
+    config_filters.extend(custom_config_filters) 
+    
+    def filter_config(data, mode, is_conffile=False):
         """
         It purges the configuration
         Args:
@@ -223,30 +229,36 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                     * 'plain' 
                     * 'json'   
             :type mode: ``str``
+            :param is_conffile:
+                True is data is from "ceph.conf" (INI file)
+            :type is_conffile: ``bool``
         Return:
             bytes
         
         """
-        config_filters=DEFAULT_CONFIG_FILTERS
-        config_filters.extend(custom_config_filters) 
         if mode == 'plain':
             if type(data) == bytes:
                 data=data.decode('utf-8')
 
             lines=data.splitlines()
             for patter in config_filters:
-                for index in range(len(lines)-1,-1,-1):
-                    if bool(re.search(patter, lines[index])):
-                        del lines[index]
+                for index in range(len(lines)-1, -1, -1):
+                    line=lines[index]
+                    if bool(re.search(patter, line)):
+                        if is_conffile:
+                            lines[index] = line[:line.rfind("=")] + ' = ' + FILTER_PLACEHOLDER 
+                        else:
+                            print(line)
+                            lines[index] = line.replace(line.split()[3], FILTER_PLACEHOLDER)
             data='\n'.join(lines)
 
         elif mode in ('json', 'json-pretty'):
             js= json.loads(data)
             for patter in config_filters:
-                for index in range(len(js)-1 ,-1, -1):
+                for index in range(len(js)-1, -1, -1):
                     for key in ('name', 'section', 'value'):
                         if bool(re.search(patter, js[index][key])):
-                            del js[index]
+                            js[index]['value']=FILTER_PLACEHOLDER
                             break
             if mode == 'json':
                 data = json.dumps(js)
@@ -279,20 +291,32 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         files['fsid'] = bytes(r.get_fsid() + '\n', 'utf-8')
         files['ceph.conf'] = filter_config(
                 get_ceph_config(ceph_config), 
-                'plain'
+                'plain',
+                True
         )
     else:
         files['fsid'] = str(r.get_fsid()) + '\n'
         files['ceph.conf'] = str(
             filter_config(
                 get_ceph_config(ceph_config), 
-                'plain'
+                'plain',
+                True
             )
         )
     files['config'] = filter_config(
         ceph_mon_command(r, 'config dump', timeout, output_format),
-        output_format
+        output_format,
+        False
     )
+    if log_config: 
+        LOGGER.info('==== ceph.conf ======')
+        for line in files['ceph.conf'] .splitlines():
+            writemessage = " - " + line.decode('utf-8') 
+            LOGGER.info(str(writemessage))
+        LOGGER.info('====== config ======')
+        for line in files['config'] .splitlines():
+            writemessage = " - " + line.decode('utf-8')
+            LOGGER.info(str(writemessage))
 
     LOGGER.info('Gathering Health information')
     for key, item in get_health_info(r, timeout, output_format).items():
@@ -370,6 +394,9 @@ if __name__ == '__main__':
                         dest='custom_config_filter',
                         help='Custom filter (python regex) for purging config dump. '
                         )
+    PARSER.add_argument('--log-gathered-config', action='store_true',
+                        dest='log_gathered_config', default=False,
+                        help='Log on INFO the config after the purge')
     ARGS = PARSER.parse_args()
 
     if ARGS.debug:
@@ -383,7 +410,8 @@ if __name__ == '__main__':
                                  timeout=ARGS.timeout, cleanup=ARGS.cleanup,
                                  device_health=ARGS.device_health_metrics,
                                  custom_config_filters=ARGS.custom_config_filter or [],
-                                 output_format=ARGS.output_format)
+                                 output_format=ARGS.output_format,
+                                 log_config=ARGS.log_gathered_config)
         RETURN_VALUE = 0
     except (rados.Error,
             tarfile.TarError,
