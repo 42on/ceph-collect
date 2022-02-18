@@ -248,7 +248,6 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                         if is_conffile:
                             lines[index] = line[:line.rfind("=")] + ' = ' + FILTER_PLACEHOLDER 
                         else:
-                            print(line)
                             lines[index] = line.replace(line.split()[3], FILTER_PLACEHOLDER)
             data='\n'.join(lines)
 
