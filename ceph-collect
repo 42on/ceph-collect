@@ -217,7 +217,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     config_filters=DEFAULT_CONFIG_FILTERS
     config_filters.extend(custom_config_filters) 
     
-    def filter_config(data, mode, is_conffile=False):
+    def filter_config(data, mode, is_conffile):
         """
         It purges the configuration
         Args:
@@ -230,7 +230,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                     * 'json'   
             :type mode: ``str``
             :param is_conffile:
-                True is data is from "ceph.conf" (INI file)
+                True if data is from "ceph.conf"
             :type is_conffile: ``bool``
         Return:
             bytes
@@ -241,14 +241,23 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                 data=data.decode('utf-8')
 
             lines=data.splitlines()
+            if not is_conffile:
+                # find the position of the VALUE Column
+                config_value_start=lines[0].rfind("VALUE")
+                config_value_end=lines[0].rfind("RO")
+
             for patter in config_filters:
-                for index in range(len(lines)-1, -1, -1):
+                for index in range(len(lines)-1, 0, -1):
                     line=lines[index]
                     if bool(re.search(patter, line)):
                         if is_conffile:
+                            # replace from '=' to end of line with FILTER_PLACEHOLDER 
                             lines[index] = line[:line.rfind("=")] + ' = ' + FILTER_PLACEHOLDER 
                         else:
-                            lines[index] = line.replace(line.split()[3], FILTER_PLACEHOLDER)
+                            # replace the VALUE column with FILTER_PLACEHOLDER
+                            lines[index] = line[:config_value_start] +  \
+                                FILTER_PLACEHOLDER + " " + \
+                                line[config_value_end]
             data='\n'.join(lines)
 
         elif mode in ('json', 'json-pretty'):
