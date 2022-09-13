@@ -287,7 +287,10 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
 
     LOGGER.info('Gathering overall system information')
     files['uname'] = spawn('uname -a') + b'\n'
-    files['lsb_release'] = spawn('lsb_release -a') + b'\n'
+    lsb_release = spawn('lsb_release -a')
+    if(len(lsb_release)==0):
+        lsb_release = spawn('cat /etc/*-release')
+    files['lsb_release'] = lsb_release + b'\n'
 
     LOGGER.info('Gathering overall Ceph information')
     files['status'] = ceph_mon_command(r, 'status', timeout, output_format)
