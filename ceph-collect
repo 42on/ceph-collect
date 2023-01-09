@@ -237,6 +237,9 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             bytes
         
         """
+        if not data:
+          return data
+
         if mode == 'plain':
             if type(data) == bytes:
                 data=data.decode('utf-8')
