@@ -212,7 +212,7 @@ def get_ceph_config(ceph_config):
 
 
 def collect_ceph_information(r, ceph_config, output_directory, timeout,
-                             output_format, cleanup=True, device_health=False,
+                            cleanup=True, device_health=False,
                             custom_config_filters=[],log_config=False):
     
     config_filters=DEFAULT_CONFIG_FILTERS
@@ -296,10 +296,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     files['lsb_release'] = lsb_release + b'\n'
 
     LOGGER.info('Gathering overall Ceph information')
-    files['status'] = ceph_mon_command(r, 'status', timeout, output_format)
+    files['status'] = ceph_mon_command(r, 'status', timeout, 'plain')
+    files['status.json'] = ceph_mon_command(r, 'status', timeout, 'json')
     files['version'] = spawn('ceph -v') + b'\n'
-    files['versions'] = ceph_mon_command(r, 'versions', timeout, output_format)
-    files['features'] = ceph_mon_command(r, 'features', timeout, output_format)
+    files['versions'] = ceph_mon_command(r, 'versions', timeout, 'plain')
+    files['versions.json'] = ceph_mon_command(r, 'versions', timeout, 'json')
+    files['features'] = ceph_mon_command(r, 'features', timeout, 'plain')
+    files['features.json'] = ceph_mon_command(r, 'features', timeout, 'json')
 
     ##Add if to get around python2/python3 dependencies etc.
     if sys.version_info[0] == 3:
@@ -319,8 +322,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             )
         )
     files['config'] = filter_config(
-        ceph_mon_command(r, 'config dump', timeout, output_format),
-        output_format,
+        ceph_mon_command(r, 'config dump', timeout, 'plain'),
+        'plain',
+        False
+    )
+    files['config.json'] = filter_config(
+        ceph_mon_command(r, 'config dump', timeout, 'json'),
+        'json',
         False
     )
     if log_config: 
@@ -334,29 +342,41 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             LOGGER.info(str(writemessage))
 
     LOGGER.info('Gathering Health information')
-    for key, item in get_health_info(r, timeout, output_format).items():
+    for key, item in get_health_info(r, timeout, 'plain').items():
         files['health_{0}'.format(key)] = item
+    for key, item in get_health_info(r, timeout, 'json').items():
+        files['health_{0}.json'.format(key)] = item
 
     LOGGER.info('Gathering MON information')
-    for key, item in get_mon_info(r, timeout, output_format).items():
+    for key, item in get_mon_info(r, timeout, 'plain').items():
         files['mon_{0}'.format(key)] = item
+    for key, item in get_mon_info(r, timeout, 'json').items():
+        files['mon_{0}.json'.format(key)] = item
 
     LOGGER.info('Gathering OSD information')
-    for key, item in get_osd_info(r, timeout, output_format).items():
+    for key, item in get_osd_info(r, timeout, 'plain').items():
         files['osd_{0}'.format(key)] = item
+    for key, item in get_osd_info(r, timeout, 'json').items():
+        files['osd_{0}.json'.format(key)] = item
 
     LOGGER.info('Gathering PG information')
-    for key, item in get_pg_info(r, timeout, output_format).items():
+    for key, item in get_pg_info(r, timeout, 'plain').items():
         files['pg_{0}'.format(key)] = item
+    for key, item in get_pg_info(r, timeout, 'json').items():
+        files['pg_{0}.json'.format(key)] = item
 
     LOGGER.info('Gathering MDS information')
-    for key, item in get_mds_info(r, timeout, output_format).items():
+    for key, item in get_mds_info(r, timeout, 'plain').items():
         files['mds_{0}'.format(key)] = item
+    for key, item in get_mds_info(r, timeout, 'json').items():
+        files['mds_{0}.json'.format(key)] = item
 
     if device_health:
         LOGGER.info('Gathering Device Health information')
-        for key, item in get_device_info(r, timeout, output_format).items():
+        for key, item in get_device_info(r, timeout, 'plain').items():
             files['device_{0}'.format(key)] = item
+        for key, item in get_device_info(r, timeout, 'json').items():
+            files['device_{0}.json'.format(key)] = item
 
     timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
     tarball = '{0}/ceph-collect_{1}.tar.gz'.format(output_directory, timestr)
@@ -396,8 +416,6 @@ if __name__ == '__main__':
                         dest='timeout',
                         default=CEPH_TIMEOUT,
                         help='Timeout for Ceph operations')
-    PARSER.add_argument('--format', action='store', dest='output_format',
-                        default='plain', help='output format plain|json')
     PARSER.add_argument('--debug', action='store_true', dest='debug',
                         default=False, help='Debug logging')
     PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
@@ -425,7 +443,6 @@ if __name__ == '__main__':
                                  timeout=ARGS.timeout, cleanup=ARGS.cleanup,
                                  device_health=ARGS.device_health_metrics,
                                  custom_config_filters=ARGS.custom_config_filter or [],
-                                 output_format=ARGS.output_format,
                                  log_config=ARGS.log_gathered_config)
         RETURN_VALUE = 0
     except (rados.Error,
