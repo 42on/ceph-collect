@@ -177,9 +177,14 @@ def get_mds_info(r, timeout, output_format):
     return info
 
 
-def get_pg_info(r, timeout, output_format):
+def get_pg_stat_info(r, timeout, output_format):
     info = dict()
     info['stat'] = ceph_mon_command(r, 'pg stat', timeout, output_format)
+    return info
+
+
+def get_pg_dump_info(r, timeout, output_format):
+    info = dict()
     info['dump'] = ceph_mon_command(r, 'pg dump', timeout, output_format)
     info['dump_stuck'] = ceph_mon_command(r, 'pg dump_stuck', timeout, output_format)
     return info
@@ -360,10 +365,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         files['osd_{0}.json'.format(key)] = item
 
     LOGGER.info('Gathering PG information')
-    for key, item in get_pg_info(r, timeout, 'plain').items():
+    for key, item in get_pg_stat_info(r, timeout, 'plain').items():
         files['pg_{0}'.format(key)] = item
-    for key, item in get_pg_info(r, timeout, 'json').items():
+    for key, item in get_pg_stat_info(r, timeout, 'json').items():
         files['pg_{0}.json'.format(key)] = item
+    for key, item in get_pg_dump_info(r, timeout, 'plain').items():
+        files['pg_{0}.json'.format(key)] = item
+    # pg dump json is too big so we collect only plain
 
     LOGGER.info('Gathering MDS information')
     for key, item in get_mds_info(r, timeout, 'plain').items():
