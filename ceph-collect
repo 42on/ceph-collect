@@ -370,7 +370,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     for key, item in get_pg_stat_info(r, timeout, 'json').items():
         files['pg_{0}.json'.format(key)] = item
     for key, item in get_pg_dump_info(r, timeout, 'plain').items():
-        files['pg_{0}.json'.format(key)] = item
+        files['pg_{0}'.format(key)] = item
     # pg dump json is too big so we collect only plain
 
     LOGGER.info('Gathering MDS information')
