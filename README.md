@@ -78,7 +78,7 @@ root@mon01:~#
 ### Gathering Device Health information
 By default  ``ceph-collect`` doesn't collect the device's health information. Use ``--device-health-metrics`` to enable it.
 
-``ceph-collect --device-heath-metrics``
+``ceph-collect --device-health-metrics``
 
 ### One-liner
 If you want to run this tool without downloading it, you can run it directly using this one-liner:
