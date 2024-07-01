@@ -265,9 +265,9 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                         else:
                             # replace the VALUE column with FILTER_PLACEHOLDER
                             lines[index] = line[:config_value_start] +  \
-                                FILTER_PLACEHOLDER + " " + \
-                                line[config_value_end]
-            data='\n'.join(lines)
+                                FILTER_PLACEHOLDER + " "*(config_value_end-config_value_start-len(FILTER_PLACEHOLDER)) + \
+                                line[min(config_value_end, len(line)):]
+            data='\n'.join(lines) + '\n'
 
         elif mode in ('json', 'json-pretty'):
             js= json.loads(data)
