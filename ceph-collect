@@ -426,14 +426,14 @@ def upload_tarball (ARGS, tarball):
     LOGGER.debug('Upload headers: "' + str(ARGS.upload_headers) + '"')
     LOGGER.debug('Upload timeout: "' + str(ARGS.upload_timeout) + '"')
 
-    cmd=CURL_COMMAND + \
+    cmd=CURL_COMMAND + " " + \
         "--max-time " + str(ARGS.upload_timeout) + ' ' + \
         "--request PUT --upload-file '" + \
-        str(tarball) + "' "
+        str(tarball) + "'"
 
     for header  in ARGS.upload_headers:
         cmd=cmd + " -H '" + str(header) + "'"
-    cmd=cmd + ARGS.uploa_endpoint.format(bucket=ARGS.upload_bucket)
+    cmd=cmd + " " + ARGS.upload_endpoint % {'bucket':ARGS.upload_bucket}
 
     result = spawn (
         cmd
@@ -506,7 +506,6 @@ if __name__ == '__main__':
                                         timeout=ARGS.timeout, cleanup=ARGS.cleanup,
                                         device_health=ARGS.device_health_metrics,
                                         custom_config_filters=ARGS.custom_config_filter or [],
-                                        output_format=ARGS.output_format,
                                         log_config=ARGS.log_gathered_config)
             RETURN_VALUE = 0
         except (rados.Error,
@@ -515,11 +514,11 @@ if __name__ == '__main__':
                 KeyError,
                 ValueError) as exc:
             LOGGER.error(exc) 
-    if tarball:
+    if ARGS.upload_file or ARGS.upload:
         try:
             upload_tarball (ARGS, tarball)
-        except exc :
-            LOGGER.error(exc)
+        except :
+            LOGGER.exception("Upload failed")
             RETURN_VALUE = 1
 
     sys.exit(RETURN_VALUE)
