@@ -394,9 +394,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             files['device_{0}'.format(key)] = item
         for key, item in get_device_info(r, timeout, 'json').items():
             files['device_{0}.json'.format(key)] = item
-
-    timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
-    tarball = '{0}/ceph-collect_{1}.tar.gz'.format(output_directory, timestr)
+    fsid=str(r.get_fsid())
+    timestr = datetime.datetime.utcnow().strftime("%Y%m%d_%H%I%S")
+    tarball = '{0}/ceph-collect_{1}_{2}.tar.gz'.format(
+            output_directory, 
+            fsid,
+            timestr
+    )
 
     with tarfile.open(tarball, 'w:gz') as tar:
         for filename, content in files.items():
