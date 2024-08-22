@@ -484,8 +484,8 @@ if __name__ == '__main__':
                         dest='upload_bucket', default=S3_BUCKET,
                         help='Upload the ceph-collect to 42on repository.')
     
-    PARSER.add_argument('--upload-timeout', action='store', type='int',
-                        dest='upload_timeout', default=S3_BUCKET,
+    PARSER.add_argument('--upload-timeout', action='store', type=int,
+                        dest='upload_timeout', default=S3_TIMEOUT,
                         help='Upload the ceph-collect to 42on repository.')
 
     PARSER.add_argument('--upload_file', action='store', dest='upload_file',
