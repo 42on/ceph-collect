@@ -48,10 +48,10 @@ try:
 except ImportError:
     if sys.version_info[0] == 3:
         LOGGER.error("rados module not found, try running with python2")
-        #sys.exit(1)
+        sys.exit(1)
     else:
         LOGGER.error("rados module not found, try running with python3")
-        #sys.exit(1)
+        sys.exit(1)
 
 # Utility Function
 
