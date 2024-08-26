@@ -87,6 +87,9 @@ If you want to run this tool without downloading it, you can run it directly usi
 
 It will not save the tool on disk, it just runs the Python code and saves the output in */tmp*.
 
+## Auto upload.
+If you want to upload the ceph-collect to 42on, use the ``--upload`` argument.
+
 ## Output
 After the tool finishes a tarball will be placed in */tmp* containing all the information.
 
