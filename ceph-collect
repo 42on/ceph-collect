@@ -434,6 +434,8 @@ def upload_tarball (ARGS, tarball):
         "--max-time " + str(ARGS.upload_timeout) + ' ' + \
         "--request PUT --upload-file '" + \
         str(tarball) + "'"
+    if ARGS.ticket:
+        ARGS.upload_headers.append("x-amz-tagging: ticket=" + ARGS.ticket)
 
     for header  in ARGS.upload_headers:
         cmd=cmd + " -H '" + str(header) + "'"
@@ -478,6 +480,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--upload', action='store_true',
                         dest='upload', default=False,
                         help='Upload the ceph-collect to 42on repository.')
+    PARSER.add_argument('--ticket', action='store',
+                        dest='ticket', default=None,
+                        help='42on ticket.')
     PARSER.add_argument('--upload-header', action='append',
                         dest='upload_headers', default=S3_HEADERS,
                         help='Upload the ceph-collect to 42on repository.')
