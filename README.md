@@ -87,8 +87,6 @@ If you want to run this tool without downloading it, you can run it directly usi
 
 It will not save the tool on disk, it just runs the Python code and saves the output in */tmp*.
 
-## Auto upload.
-If you want to upload the ceph-collect to 42on, use the ``--upload`` argument.
 
 ## Output
 After the tool finishes a tarball will be placed in */tmp* containing all the information.
@@ -98,6 +96,9 @@ This tarball should be just a few kilobytes in size.
 For example: */tmp/ceph-collect_20160729_150304.tar.gz*
 
 Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
+
+### Auto upload
+If you want to upload the ceph-collect to 42on, use the ``--upload`` argument.
 
 # License
 This tool was written by [42on](http://www.42on.com/) to help Ceph customers quickly.
