@@ -497,7 +497,7 @@ if __name__ == '__main__':
                         dest='upload_timeout', default=S3_TIMEOUT,
                         help='Upload the ceph-collect to 42on repository.')
 
-    PARSER.add_argument('--upload_file', action='store', dest='upload_file',
+    PARSER.add_argument('--upload-file', action='store', dest='upload_file',
                         default='',
                         help='Upload the previously created ceph-collect.')
     ARGS = PARSER.parse_args()
