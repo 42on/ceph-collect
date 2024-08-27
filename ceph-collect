@@ -43,15 +43,68 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 LOGGER = logging.getLogger()
 
-try:
-    import rados
-except ImportError:
-    if sys.version_info[0] == 3:
-        LOGGER.error("rados module not found, try running with python2")
-        sys.exit(1)
-    else:
-        LOGGER.error("rados module not found, try running with python3")
-        sys.exit(1)
+PARSER = argparse.ArgumentParser(description='Ceph Collect: Gather '
+                                             'information from a Ceph '
+                                             'cluster for support desks')
+PARSER.add_argument('--ceph-config', action='store', dest='ceph_config',
+                    default=CEPH_CONFIG_FILE,
+                    help='Ceph Configuration file')
+PARSER.add_argument('--output-dir', action='store', dest='output_dir',
+                    default=tempfile.gettempdir(),
+                    help='Directory to store output in')
+PARSER.add_argument('--timeout', action='store', type=int,
+                    dest='timeout',
+                    default=CEPH_TIMEOUT,
+                    help='Timeout for Ceph operations')
+PARSER.add_argument('--debug', action='store_true', dest='debug',
+                    default=False, help='Debug logging')
+PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
+                    default=True, help='Clean up temporary directory')
+PARSER.add_argument('--device-health-metrics', action='store_true',
+                    dest='device_health_metrics', default=False,
+                    help='Enable the collection of device health information')
+PARSER.add_argument('--config-filter', action='append',
+                    dest='custom_config_filter',
+                    help='Custom filter (python regex) for purging config dump. ')
+PARSER.add_argument('--log-gathered-config', action='store_true',
+                    dest='log_gathered_config', default=False,
+                    help='Log on INFO the config after the purge')
+PARSER.add_argument('--upload', action='store_true',
+                    dest='upload', default=False,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--ticket', action='store',
+                    dest='ticket', default=None,
+                    help='42on ticket.')
+PARSER.add_argument('--upload-header', action='append',
+                    dest='upload_headers', default=S3_HEADERS,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--upload-endpoint', action='store',
+                    dest='upload_endpoint', default=S3_ENDPOINT,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--upload-bucket', action='store',
+                    dest='upload_bucket', default=S3_BUCKET,
+                    help='Upload the ceph-collect to 42on repository.')
+
+PARSER.add_argument('--upload-timeout', action='store', type=int,
+                    dest='upload_timeout', default=S3_TIMEOUT,
+                    help='Upload the ceph-collect to 42on repository.')
+
+PARSER.add_argument('--upload-file', action='store', dest='upload_file',
+                    default='',
+                    help='Upload the previously created ceph-collect.')
+ARGS = PARSER.parse_args()
+
+
+if not (ARGS.upload and ARGS.upload_file):
+    try:
+        import rados
+    except ImportError:
+        if sys.version_info[0] == 3:
+            LOGGER.error("rados module not found, try running with python2")
+            sys.exit(1)
+        else:
+            LOGGER.error("rados module not found, try running with python3")
+            sys.exit(1)
 
 # Utility Function
 
@@ -451,57 +504,6 @@ def upload_tarball (ARGS, tarball):
 
 if __name__ == '__main__':
     RETURN_VALUE = 1
-    PARSER = argparse.ArgumentParser(description='Ceph Collect: Gather '
-                                                 'information from a Ceph '
-                                                 'cluster for support desks')
-    PARSER.add_argument('--ceph-config', action='store', dest='ceph_config',
-                        default=CEPH_CONFIG_FILE,
-                        help='Ceph Configuration file')
-    PARSER.add_argument('--output-dir', action='store', dest='output_dir',
-                        default=tempfile.gettempdir(),
-                        help='Directory to store output in')
-    PARSER.add_argument('--timeout', action='store', type=int,
-                        dest='timeout',
-                        default=CEPH_TIMEOUT,
-                        help='Timeout for Ceph operations')
-    PARSER.add_argument('--debug', action='store_true', dest='debug',
-                        default=False, help='Debug logging')
-    PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
-                        default=True, help='Clean up temporary directory')
-    PARSER.add_argument('--device-health-metrics', action='store_true',
-                        dest='device_health_metrics', default=False,
-                        help='Enable the collection of device health information')
-    PARSER.add_argument('--config-filter', action='append',
-                        dest='custom_config_filter',
-                        help='Custom filter (python regex) for purging config dump. ')
-    PARSER.add_argument('--log-gathered-config', action='store_true',
-                        dest='log_gathered_config', default=False,
-                        help='Log on INFO the config after the purge')
-    PARSER.add_argument('--upload', action='store_true',
-                        dest='upload', default=False,
-                        help='Upload the ceph-collect to 42on repository.')
-    PARSER.add_argument('--ticket', action='store',
-                        dest='ticket', default=None,
-                        help='42on ticket.')
-    PARSER.add_argument('--upload-header', action='append',
-                        dest='upload_headers', default=S3_HEADERS,
-                        help='Upload the ceph-collect to 42on repository.')
-    PARSER.add_argument('--upload-endpoint', action='store',
-                        dest='upload_endpoint', default=S3_ENDPOINT,
-                        help='Upload the ceph-collect to 42on repository.')
-    PARSER.add_argument('--upload-bucket', action='store',
-                        dest='upload_bucket', default=S3_BUCKET,
-                        help='Upload the ceph-collect to 42on repository.')
-    
-    PARSER.add_argument('--upload-timeout', action='store', type=int,
-                        dest='upload_timeout', default=S3_TIMEOUT,
-                        help='Upload the ceph-collect to 42on repository.')
-
-    PARSER.add_argument('--upload-file', action='store', dest='upload_file',
-                        default='',
-                        help='Upload the previously created ceph-collect.')
-    ARGS = PARSER.parse_args()
-
     if ARGS.debug:
         LOGGER.setLevel(logging.DEBUG)
     
