@@ -12,15 +12,25 @@ License: GPL2
 import argparse
 import datetime
 import sys
+import os
 import shutil
 import logging
 import tempfile
 import tarfile
 import json
 import subprocess
-
+import uuid
 import re
 
+
+try:
+    # python3
+    from  urllib.parse import urlencode
+except ModuleNotFoundError:
+    # python2
+    from urllib import urlencode
+
+DATETIME_FORMAT="%Y%m%d_%H%I%S"
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
@@ -72,9 +82,6 @@ PARSER.add_argument('--log-gathered-config', action='store_true',
 PARSER.add_argument('--upload', action='store_true',
                     dest='upload', default=False,
                     help='Upload the ceph-collect to 42on repository.')
-PARSER.add_argument('--ticket', action='store',
-                    dest='ticket', default=None,
-                    help='42on ticket.')
 PARSER.add_argument('--upload-header', action='append',
                     dest='upload_headers', default=S3_HEADERS,
                     help='Upload the ceph-collect to 42on repository.')
@@ -92,6 +99,18 @@ PARSER.add_argument('--upload-timeout', action='store', type=int,
 PARSER.add_argument('--upload-file', action='store', dest='upload_file',
                     default='',
                     help='Upload the previously created ceph-collect.')
+PARSER.add_argument('--ticket', action='store',
+                    dest='ticket', default=None,
+                    help='42on ticket.')
+
+PARSER.add_argument('--customer', action='store',
+                    dest='customer', default=None,
+                    help='Customer name. Usually the mail domain.')
+
+PARSER.add_argument('--friendly-name', action='store',
+                    dest='friendly_name', default=None,
+                    help='Friendly name of the cluster. Es. "production".')
+
 ARGS = PARSER.parse_args()
 
 
@@ -148,13 +167,15 @@ def get_rados_connection(ceph_config, timeout):
     return r
 
 
-def spawn(command, shell=True):
+def spawn(command, shell=True, raise_on_error=False):
     """
     Simply spawn a process and return the output
     """
     LOGGER.debug(command + "(shell:" + str(shell) + ")")
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=shell)
     (result, _) = p.communicate()
+    if raise_on_error and p.returncode != 0:
+        raise RuntimeError("Process exited abnormally")
     return result.strip()
 
 
@@ -448,7 +469,7 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         for key, item in get_device_info(r, timeout, 'json').items():
             files['device_{0}.json'.format(key)] = item
     fsid=str(r.get_fsid())
-    timestr = datetime.datetime.utcnow().strftime("%Y%m%d_%H%I%S")
+    timestr = datetime.datetime.utcnow().strftime(DATETIME_FORMAT)
     tarball = '{0}/ceph-collect_{1}_{2}.tar.gz'.format(
             output_directory, 
             fsid,
@@ -475,31 +496,64 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
         LOGGER.debug('Not cleaning up temporary directory %s', tmpdir)
 
     return tarball
-def upload_tarball (ARGS, tarball):
+
+def check_tarball_name(ARGS, tarball_name):
+    LOGGER.info('Parsing "{0}"'.format(tarball_name))
+    try:
+        s = tarball_name.split('_')[1:]
+        s[-1]=s[-1].split('.')[0]
+        fsid = s[0]
+        timestamp = datetime.datetime.strptime("_".join(s[1:3]), DATETIME_FORMAT)
+        uuid.UUID(str(fsid))
+    except:
+        LOGGER.error(
+                "Tarball fine name not valid. " 
+                "The correct format is \"ceph-collect_${{FSID}}_$(date +'{0}').tar.gz\"".format(
+                    DATETIME_FORMAT
+                )
+        )
+        exit(1)
+
+def build_tags(ARGS):
+    tags= {}
+    if ARGS.ticket:
+        tags['ticket']=ARGS.ticket
+    if ARGS.customer:
+        tags['customer']=ARGS.customer
+    if ARGS.friendly_name:
+        tags['friendly_name']=ARGS.friendly_name
     
+    return "x-amz-tagging: " + urlencode(tags)
+
+def upload_tarball (ARGS, tarball):
+    tarball_filename=os.path.basename(tarball)
+
+    check_tarball_name(ARGS, tarball_filename)
+
     LOGGER.info('Uploading "' + str(tarball) + '"')
     LOGGER.debug('Upload endpoint: "' + str(ARGS.upload_endpoint)+ '"')
     LOGGER.debug('Upload bucket: "' + str(ARGS.upload_bucket) + '"')
     LOGGER.debug('Upload headers: "' + str(ARGS.upload_headers) + '"')
     LOGGER.debug('Upload timeout: "' + str(ARGS.upload_timeout) + '"')
-
+    
     cmd=CURL_COMMAND + " " + \
         "--max-time " + str(ARGS.upload_timeout) + ' ' + \
         "--request PUT --upload-file '" + \
         str(tarball) + "'"
-    if ARGS.ticket:
-        ARGS.upload_headers.append("x-amz-tagging: ticket=" + ARGS.ticket)
+    
+    ARGS.upload_headers.append(build_tags(ARGS))
 
     for header  in ARGS.upload_headers:
         cmd=cmd + " -H '" + str(header) + "'"
-    cmd=cmd + " " + ARGS.upload_endpoint % {'bucket':ARGS.upload_bucket}
+    
+    cmd=cmd + " " + ARGS.upload_endpoint % {'bucket':ARGS.upload_bucket} + '/{0}'.format(tarball_filename)
 
+    LOGGER.info(cmd)
     result = spawn (
-        cmd
+        cmd,
+        raise_on_error=True
     )
-    LOGGER.debug(result)
 
-    #curl --request PUT --upload-file "$CEPH_COLLECT_FILE" -H 'x-amz-acl: bucket-owner-full-control' -k https://anonymous.fig-nl-dc1.s3.fairbanks.nl:1443/$CEPH_COLLECT_FILE
 
 
 if __name__ == '__main__':
@@ -528,6 +582,8 @@ if __name__ == '__main__':
     if ARGS.upload_file or ARGS.upload:
         try:
             upload_tarball (ARGS, tarball)
+        except SystemExit:
+            pass
         except :
             LOGGER.exception("Upload failed")
             RETURN_VALUE = 1
