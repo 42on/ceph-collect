@@ -71,7 +71,7 @@ INFO:root:Gathering MON information
 INFO:root:Gathering OSD information
 INFO:root:Gathering PG information
 INFO:root:Gathering MDS information
-INFO:root:Outputted Ceph information to /tmp/ceph-collect_20160729_150304.tar.gz
+INFO:root:Outputted Ceph information to /tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20240829_20160729_150304.tar.gz
 DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
@@ -93,12 +93,18 @@ After the tool finishes a tarball will be placed in */tmp* containing all the in
 
 This tarball should be just a few kilobytes in size.
 
-For example: */tmp/ceph-collect_20160729_150304.tar.gz*
+For example: */tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20240829_20160729_150304.tar.gz*
 
 Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
 
-### Auto upload
-If you want to upload the ceph-collect to 42on, use the ``--upload`` argument.
+## Upload to 42on repository
+You can automatically upload the ceph-collect to the 42on repository by passing the "--upload" parameter. You can also specify a ticket number, customer, and cluster name.
+For example:
+``../ceph-collect --upload --ticket CON-999 --customer example.com --friendly-name test_clsuer``
+
+### Upload an already created file
+If your cluster is isolated from the internet, you can upload a pre-created file by passing the ``--upload-file parameter``. The file must adhere to the naming convention ``ceph-collect_${FSID}_$(date +'%Y%m%d_%H%I%S').tar.gz``.
+
 
 # License
 This tool was written by [42on](http://www.42on.com/) to help Ceph customers quickly.
