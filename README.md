@@ -99,11 +99,14 @@ Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
 
 ## Upload to 42on repository
 You can automatically upload the ceph-collect to the 42on repository by passing the "--upload" parameter. You can also specify a ticket number, customer, and cluster name.
+
 For example:
 ``../ceph-collect --upload --ticket CON-999 --customer example.com --friendly-name test_clsuer``
 
 ### Upload an already created file
-If your cluster is isolated from the internet, you can upload a pre-created file by passing the ``--upload-file parameter``. The file must adhere to the naming convention ``ceph-collect_${FSID}_$(date +'%Y%m%d_%H%I%S').tar.gz``.
+If your cluster is isolated from the internet, you can upload a pre-created file by passing the ``--upload-file`` parameter. 
+
+The file must adhere to the naming convention ``ceph-collect_${FSID}_$(date +'%Y%m%d_%H%I%S').tar.gz``.
 
 
 # License
