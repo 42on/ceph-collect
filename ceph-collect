@@ -12,18 +12,34 @@ License: GPL2
 import argparse
 import datetime
 import sys
+import os
 import shutil
 import logging
 import tempfile
 import tarfile
 import json
 import subprocess
-
+import uuid
 import re
 
 
+try:
+    # python3
+    from  urllib.parse import urlencode
+except ModuleNotFoundError:
+    # python2
+    from urllib import urlencode
+
+DATETIME_FORMAT="%Y%m%d_%H%I%S"
+
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
+
+S3_ENDPOINT = "https://%(bucket)s.fig-nl-dc1.s3.fairbanks.nl:1443"
+S3_BUCKET = 'ceph-collect'
+S3_HEADERS = ['x-amz-acl: bucket-owner-full-control']
+S3_TIMEOUT = 30
+CURL_COMMAND ='curl'
 
 DEFAULT_CONFIG_FILTERS = [
     '(?i)password',
@@ -37,15 +53,79 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 LOGGER = logging.getLogger()
 
-try:
-    import rados
-except ImportError:
-    if sys.version_info[0] == 3:
-        LOGGER.error("rados module not found, try running with python2")
-        sys.exit(1)
-    else:
-        LOGGER.error("rados module not found, try running with python3")
-        sys.exit(1)
+PARSER = argparse.ArgumentParser(description='Ceph Collect: Gather '
+                                             'information from a Ceph '
+                                             'cluster for support desks')
+PARSER.add_argument('--ceph-config', action='store', dest='ceph_config',
+                    default=CEPH_CONFIG_FILE,
+                    help='Ceph Configuration file')
+PARSER.add_argument('--output-dir', action='store', dest='output_dir',
+                    default=tempfile.gettempdir(),
+                    help='Directory to store output in')
+PARSER.add_argument('--timeout', action='store', type=int,
+                    dest='timeout',
+                    default=CEPH_TIMEOUT,
+                    help='Timeout for Ceph operations')
+PARSER.add_argument('--debug', action='store_true', dest='debug',
+                    default=False, help='Debug logging')
+PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
+                    default=True, help='Clean up temporary directory')
+PARSER.add_argument('--device-health-metrics', action='store_true',
+                    dest='device_health_metrics', default=False,
+                    help='Enable the collection of device health information')
+PARSER.add_argument('--config-filter', action='append',
+                    dest='custom_config_filter',
+                    help='Custom filter (python regex) for purging config dump. ')
+PARSER.add_argument('--log-gathered-config', action='store_true',
+                    dest='log_gathered_config', default=False,
+                    help='Log on INFO the config after the purge')
+PARSER.add_argument('--upload', action='store_true',
+                    dest='upload', default=False,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--upload-header', action='append',
+                    dest='upload_headers', default=S3_HEADERS,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--upload-endpoint', action='store',
+                    dest='upload_endpoint', default=S3_ENDPOINT,
+                    help='Upload the ceph-collect to 42on repository.')
+PARSER.add_argument('--upload-bucket', action='store',
+                    dest='upload_bucket', default=S3_BUCKET,
+                    help='Upload the ceph-collect to 42on repository.')
+
+PARSER.add_argument('--upload-timeout', action='store', type=int,
+                    dest='upload_timeout', default=S3_TIMEOUT,
+                    help='Upload the ceph-collect to 42on repository.')
+
+PARSER.add_argument('--upload-file', action='store', dest='upload_file',
+                    default='',
+                    help='Upload the previously created ceph-collect.')
+PARSER.add_argument('--ticket', action='store',
+                    dest='ticket', default=None,
+                    help='42on ticket.')
+
+PARSER.add_argument('--customer', action='store',
+                    dest='customer', default=None,
+                    help='Customer name. Usually the mail domain.')
+
+PARSER.add_argument('--friendly-name', action='store',
+                    dest='friendly_name', default=None,
+                    help='Friendly name of the cluster. Es. "production".')
+
+ARGS = PARSER.parse_args()
+
+
+if not ARGS.upload_file:
+    try:
+        import rados
+    except ImportError:
+        if sys.version_info[0] == 3:
+            LOGGER.error("rados module not found, try running with python2")
+            sys.exit(1)
+        else:
+            LOGGER.error("rados module not found, try running with python3")
+            sys.exit(1)
+
+# Utility Function
 
 # Functions to gather Ceph information
 def write_file(filename, content):
@@ -87,12 +167,15 @@ def get_rados_connection(ceph_config, timeout):
     return r
 
 
-def spawn(command, shell=True):
+def spawn(command, shell=True, raise_on_error=False):
     """
     Simply spawn a process and return the output
     """
+    LOGGER.debug(command + "(shell:" + str(shell) + ")")
     p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=shell)
     (result, _) = p.communicate()
+    if raise_on_error and p.returncode != 0:
+        raise RuntimeError("Process exited abnormally")
     return result.strip()
 
 
@@ -385,9 +468,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
             files['device_{0}'.format(key)] = item
         for key, item in get_device_info(r, timeout, 'json').items():
             files['device_{0}.json'.format(key)] = item
-
-    timestr = datetime.datetime.now().strftime("%Y%m%d_%H%I%S")
-    tarball = '{0}/ceph-collect_{1}.tar.gz'.format(output_directory, timestr)
+    fsid=str(r.get_fsid())
+    timestr = datetime.datetime.utcnow().strftime(DATETIME_FORMAT)
+    tarball = '{0}/ceph-collect_{1}_{2}.tar.gz'.format(
+            output_directory, 
+            fsid,
+            timestr
+    )
 
     with tarfile.open(tarball, 'w:gz') as tar:
         for filename, content in files.items():
@@ -408,56 +495,96 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     else:
         LOGGER.debug('Not cleaning up temporary directory %s', tmpdir)
 
+    return tarball
+
+def check_tarball_name(ARGS, tarball_name):
+    LOGGER.info('Parsing "{0}"'.format(tarball_name))
+    try:
+        s = tarball_name.split('_')[1:]
+        s[-1]=s[-1].split('.')[0]
+        fsid = s[0]
+        timestamp = datetime.datetime.strptime("_".join(s[1:3]), DATETIME_FORMAT)
+        uuid.UUID(str(fsid))
+    except:
+        LOGGER.error(
+                "Tarball fine name not valid. " 
+                "The correct format is \"ceph-collect_${{FSID}}_$(date +'{0}').tar.gz\"".format(
+                    DATETIME_FORMAT
+                )
+        )
+        exit(1)
+
+def build_tags(ARGS):
+    tags= {}
+    if ARGS.ticket:
+        tags['ticket']=ARGS.ticket
+    if ARGS.customer:
+        tags['customer']=ARGS.customer
+    if ARGS.friendly_name:
+        tags['friendly_name']=ARGS.friendly_name
+    
+    return "x-amz-tagging: " + urlencode(tags)
+
+def upload_tarball (ARGS, tarball):
+    tarball_filename=os.path.basename(tarball)
+
+    check_tarball_name(ARGS, tarball_filename)
+
+    LOGGER.info('Uploading "' + str(tarball) + '"')
+    LOGGER.debug('Upload endpoint: "' + str(ARGS.upload_endpoint)+ '"')
+    LOGGER.debug('Upload bucket: "' + str(ARGS.upload_bucket) + '"')
+    LOGGER.debug('Upload headers: "' + str(ARGS.upload_headers) + '"')
+    LOGGER.debug('Upload timeout: "' + str(ARGS.upload_timeout) + '"')
+    
+    cmd=CURL_COMMAND + " " + \
+        "--max-time " + str(ARGS.upload_timeout) + ' ' + \
+        "--request PUT --upload-file '" + \
+        str(tarball) + "'"
+    
+    ARGS.upload_headers.append(build_tags(ARGS))
+
+    for header  in ARGS.upload_headers:
+        cmd=cmd + " -H '" + str(header) + "'"
+    
+    cmd=cmd + " " + ARGS.upload_endpoint % {'bucket':ARGS.upload_bucket} + '/{0}'.format(tarball_filename)
+
+    result = spawn (
+        cmd,
+        raise_on_error=True
+    )
+
+
 
 if __name__ == '__main__':
     RETURN_VALUE = 1
-    PARSER = argparse.ArgumentParser(description='Ceph Collect: Gather '
-                                                 'information from a Ceph '
-                                                 'cluster for support desks')
-    PARSER.add_argument('--ceph-config', action='store', dest='ceph_config',
-                        default=CEPH_CONFIG_FILE,
-                        help='Ceph Configuration file')
-    PARSER.add_argument('--output-dir', action='store', dest='output_dir',
-                        default=tempfile.gettempdir(),
-                        help='Directory to store output in')
-    PARSER.add_argument('--timeout', action='store', type=int,
-                        dest='timeout',
-                        default=CEPH_TIMEOUT,
-                        help='Timeout for Ceph operations')
-    PARSER.add_argument('--debug', action='store_true', dest='debug',
-                        default=False, help='Debug logging')
-    PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
-                        default=True, help='Clean up temporary directory')
-    PARSER.add_argument('--device-health-metrics', action='store_true',
-                        dest='device_health_metrics', default=False,
-                        help='Enable the collection of device health information')
-    PARSER.add_argument('--config-filter', action='append',
-                        dest='custom_config_filter',
-                        help='Custom filter (python regex) for purging config dump. '
-                        )
-    PARSER.add_argument('--log-gathered-config', action='store_true',
-                        dest='log_gathered_config', default=False,
-                        help='Log on INFO the config after the purge')
-    ARGS = PARSER.parse_args()
-
     if ARGS.debug:
         LOGGER.setLevel(logging.DEBUG)
-
-    try:
-        CNX = get_rados_connection(ceph_config=ARGS.ceph_config,
-                                   timeout=ARGS.timeout)
-        collect_ceph_information(r=CNX, ceph_config=ARGS.ceph_config,
-                                 output_directory=ARGS.output_dir,
-                                 timeout=ARGS.timeout, cleanup=ARGS.cleanup,
-                                 device_health=ARGS.device_health_metrics,
-                                 custom_config_filters=ARGS.custom_config_filter or [],
-                                 log_config=ARGS.log_gathered_config)
-        RETURN_VALUE = 0
-    except (rados.Error,
-            tarfile.TarError,
-            IOError,
-            KeyError,
-            ValueError) as exc:
-        LOGGER.error(exc)
+    
+    tarball=ARGS.upload_file
+    if not tarball:
+        try:
+            CNX = get_rados_connection(ceph_config=ARGS.ceph_config,
+                                        timeout=ARGS.timeout)
+            tarball = collect_ceph_information(r=CNX, ceph_config=ARGS.ceph_config,
+                                        output_directory=ARGS.output_dir,
+                                        timeout=ARGS.timeout, cleanup=ARGS.cleanup,
+                                        device_health=ARGS.device_health_metrics,
+                                        custom_config_filters=ARGS.custom_config_filter or [],
+                                        log_config=ARGS.log_gathered_config)
+            RETURN_VALUE = 0
+        except (rados.Error,
+                tarfile.TarError,
+                IOError,
+                KeyError,
+                ValueError) as exc:
+            LOGGER.error(exc) 
+    if ARGS.upload_file or ARGS.upload:
+        try:
+            upload_tarball (ARGS, tarball)
+        except SystemExit:
+            pass
+        except :
+            LOGGER.exception("Upload failed")
+            RETURN_VALUE = 1
 
     sys.exit(RETURN_VALUE)
