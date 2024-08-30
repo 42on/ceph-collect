@@ -114,7 +114,7 @@ PARSER.add_argument('--friendly-name', action='store',
 ARGS = PARSER.parse_args()
 
 
-if not (ARGS.upload and ARGS.upload_file):
+if not ARGS.upload_file:
     try:
         import rados
     except ImportError:
@@ -548,7 +548,6 @@ def upload_tarball (ARGS, tarball):
     
     cmd=cmd + " " + ARGS.upload_endpoint % {'bucket':ARGS.upload_bucket} + '/{0}'.format(tarball_filename)
 
-    LOGGER.info(cmd)
     result = spawn (
         cmd,
         raise_on_error=True

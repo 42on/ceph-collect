@@ -71,7 +71,7 @@ INFO:root:Gathering MON information
 INFO:root:Gathering OSD information
 INFO:root:Gathering PG information
 INFO:root:Gathering MDS information
-INFO:root:Outputted Ceph information to /tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20240829_20160729_150304.tar.gz
+INFO:root:Outputted Ceph information to /tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20160729_150304.tar.gz
 DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
@@ -93,7 +93,7 @@ After the tool finishes a tarball will be placed in */tmp* containing all the in
 
 This tarball should be just a few kilobytes in size.
 
-For example: */tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20240829_20160729_150304.tar.gz*
+For example: */tmp/ceph-collect_44bc0804-370e-4179-b602-7597306d6196_20240829_150304.tar.gz*
 
 Send this tarball to [info@42on.com](mailto:info@42on.com) for analyses.
 
