@@ -21,12 +21,13 @@ import json
 import subprocess
 import uuid
 import re
-
+import threading
+import time
 
 try:
     # python3
     from  urllib.parse import urlencode
-except ModuleNotFoundError:
+except ImportError:
     # python2
     from urllib import urlencode
 
@@ -125,7 +126,39 @@ if not ARGS.upload_file:
             LOGGER.error("rados module not found, try running with python3")
             sys.exit(1)
 
-# Utility Function
+def exit_after(s,default):
+    '''
+    use as decorator to exit process if 
+    function takes longer than s seconds
+    '''
+    def outer(fn):
+        def inner(*args, **kwargs):
+            result = [default]
+
+            def target (result, *args, **kwargs):
+                result[0]=fn(*args, **kwargs)
+            
+            t = threading.Thread(target=target, args=(result,)  + args, kwargs=kwargs) 
+            
+            # we set to True so they will automatically closed when the main thread exits
+            # Ternary to make it worls with both version
+            t.daemon = True if  hasattr(t, "daemon") else t.setDeaemon(True)
+            
+            deadline = time.time() + s
+            t.start()
+            t.join(1)
+            i = 1
+            while t.is_alive() and time.time() < deadline:
+                    LOGGER.info("Waiting .. {}/{}".format(i,s))
+                    t.join(1)
+                    i=i+1
+            if t.is_alive():
+                    LOGGER.info("Giving up!!")
+            
+            return result[0]
+
+        return inner
+    return outer
 
 # Functions to gather Ceph information
 def write_file(filename, content):
@@ -178,12 +211,10 @@ def spawn(command, shell=True, raise_on_error=False):
         raise RuntimeError("Process exited abnormally")
     return result.strip()
 
-
+@exit_after(ARGS.timeout, b'')
 def ceph_mon_command(r, command, timeout, output_format, **kwargs):
     """
     Using librados directly execute a command inside the Monitors.
-
-    Args:
         :param r:
             The rados object connect to the cluster
         :type r: ``rados.Rados``
