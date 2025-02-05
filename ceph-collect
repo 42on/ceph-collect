@@ -272,6 +272,14 @@ def get_osd_info(r, timeout, output_format):
     info['perf'] = ceph_mon_command(r, 'osd perf', timeout, output_format)
     return info
 
+def get_orch_info(r, timeout, output_format):
+    info = dict()
+    info['ls'] = ceph_mon_command(r, 'orch ls', timeout, output_format)
+    info['ps'] = ceph_mon_command(r, 'orch ps', timeout, output_format)
+    info['host'] = ceph_mon_command(r, 'orch host ls', timeout, output_format)
+    info['device'] = ceph_mon_command(r, 'orch device ls', timeout, output_format)
+    return info
+
 
 def get_mds_info(r, timeout, output_format):
     info = dict()
@@ -493,6 +501,19 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     for key, item in get_mds_info(r, timeout, 'json').items():
         files['mds_{0}.json'.format(key)] = item
 
+    LOGGER.info('Gathering Orchestrator Information')
+    orch_status_json = ceph_mon_command(r, 'orch status', timeout, 'json')
+    # ceph_mon_command should return empty if the command doesn't exist.
+    if orch_status_json:
+        orch_backend = json.loads(orch_status_json)["backend"]
+        files['orch_status.json'] = orch_status_json
+        if orch_backend == "cephadm":
+            for key, item in get_orch_info(r, timeout, 'plain').items():
+                files['orch_{0}'.format(key)] = item
+            for key, item in get_orch_info(r, timeout, 'json').items():
+                files['orch_{0}.json'.format(key)] = item
+            files['orch_service_spec'] = ceph_mon_command(r, 'orch ls', timeout, 'plain', export="true")
+
     if device_health:
         LOGGER.info('Gathering Device Health information')
         for key, item in get_device_info(r, timeout, 'plain').items():
@@ -556,7 +577,7 @@ def build_tags(ARGS):
     
     return "x-amz-tagging: " + urlencode(tags)
 
-def upload_tarball (ARGS, tarball):
+def upload_tarball(ARGS, tarball):
     tarball_filename=os.path.basename(tarball)
 
     check_tarball_name(ARGS, tarball_filename)
