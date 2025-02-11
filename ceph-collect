@@ -31,7 +31,7 @@ except ImportError:
     # python2
     from urllib import urlencode
 
-DATETIME_FORMAT="%Y%m%d_%H%I%S"
+DATETIME_FORMAT="%Y%m%d_%H%M%S"
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
