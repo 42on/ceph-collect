@@ -23,20 +23,26 @@ import uuid
 import re
 import threading
 import time
+import hashlib
 
 try:
     # python3
     from  urllib.parse import urlencode
+    from  urllib.request import urlopen
 except ImportError:
     # python2
     from urllib import urlencode
+    from urllib2 import urlopen
 
-DATETIME_FORMAT="%Y%m%d_%H%I%S"
+DATETIME_FORMAT="%Y%m%d_%H%M%S"
 
 CEPH_CONFIG_FILE = '/etc/ceph/ceph.conf'
 CEPH_TIMEOUT = 10
 
-S3_ENDPOINT = "https://%(bucket)s.fig-nl-dc1.s3.fairbanks.nl:1443"
+CC_VERSION='1.0'
+
+
+S3_ENDPOINT = "https://%(bucket)s.fig-nl-dc1.s3.fairbanks.nl"
 S3_BUCKET = 'ceph-collect'
 S3_HEADERS = ['x-amz-acl: bucket-owner-full-control']
 S3_TIMEOUT = 30
@@ -48,6 +54,17 @@ DEFAULT_CONFIG_FILTERS = [
     '(?i)cert'
 ]
 FILTER_PLACEHOLDER = "** HIDDEN **"
+
+class OSDCommandError(Exception):
+    def __init__(self, error_code, message, output):
+        self.error_code = error_code
+        self.message = message
+        self.output = output
+        super().__init__(f"OSD command failed with error code {error_code}: {output}")
+
+# Version check
+REMOTE_URL = 'https://raw.githubusercontent.com/42on/ceph-collect/master/ceph-collect'
+LOCAL_FILE = __file__
 
 # Logging configuration
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -71,9 +88,6 @@ PARSER.add_argument('--debug', action='store_true', dest='debug',
                     default=False, help='Debug logging')
 PARSER.add_argument('--no-cleanup', action='store_false', dest='cleanup',
                     default=True, help='Clean up temporary directory')
-PARSER.add_argument('--device-health-metrics', action='store_true',
-                    dest='device_health_metrics', default=False,
-                    help='Enable the collection of device health information')
 PARSER.add_argument('--config-filter', action='append',
                     dest='custom_config_filter',
                     help='Custom filter (python regex) for purging config dump. ')
@@ -112,8 +126,19 @@ PARSER.add_argument('--friendly-name', action='store',
                     dest='friendly_name', default=None,
                     help='Friendly name of the cluster. Es. "production".')
 
-ARGS = PARSER.parse_args()
+PARSER.add_argument('--add-all', action='store_true', dest='add_all',
+                    default=False, help='Enables every --add flag')
 
+PARSER.add_argument('--add-device-health', action='store_true',
+                    dest='add_device_health', default=False,
+                    help='Enable the collection of device health information')
+
+PARSER.add_argument('--add-fragmentation-score', action='store_true',
+                    dest='add_fragmentation_score', default=False,
+                    help='Adds block fragmentation score info')
+
+ARGS = PARSER.parse_args()
+FLAGS = {key: value for key, value in vars(ARGS).items() if key.startswith('add')}
 
 if not ARGS.upload_file:
     try:
@@ -227,7 +252,7 @@ def ceph_mon_command(r, command, timeout, output_format, **kwargs):
         :param output_format:
         :type output_format: ``str``
 
-        :param \**kwargs:
+        :param **kwargs:
             the arguments to pass to the mon command
 
     Example:
@@ -241,6 +266,38 @@ def ceph_mon_command(r, command, timeout, output_format, **kwargs):
     _, buf, _ = r.mon_command(json.dumps(cmd), b'', timeout=timeout)
     return buf
 
+def ceph_osd_command(r, osd, command, timeout=2, **kwargs):
+    """
+    Using librados directly execute a command inside the Monitors.
+        :param r:
+            The rados object connect to the cluster
+        :type r: ``rados.Rados``
+        :param osd:
+            The OSD ID
+        :param command:
+            The command to be exected by the Mon
+        :type command: ``str``
+        :param timeout:
+            The timeout for the request
+        :type  timeout: ``int``
+
+        :param **kwargs:
+            the arguments to pass to the osd command
+
+    Example:
+        # 'ceph tell osd.0 help"
+        ceph_mon_command(r, 0, "help", 1)
+    """
+
+    cmd = kwargs.copy()
+    cmd['prefix'] = command
+    ret, buf, output = r.osd_command(osd, json.dumps(cmd), b'', timeout=timeout)
+    if ret == 0:
+        return buf
+    elif ret == -110:
+        raise OSDCommandError(ret, buf, "ETIMEDOUT")
+    else:
+        raise OSDCommandError(ret, buf, output)
 
 def get_health_info(r, timeout, output_format):
     info = dict()
@@ -338,7 +395,7 @@ def get_ceph_config(ceph_config):
     return read_file(ceph_config)
 
 
-def collect_ceph_information(r, ceph_config, output_directory, timeout,
+def collect_ceph_information(r, flags, ceph_config, output_directory, timeout,
                             cleanup=True, device_health=False,
                             custom_config_filters=[],log_config=False):
     
@@ -414,6 +471,13 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     LOGGER.debug('Using temporary directory %s', tmpdir)
 
     files = dict()
+    lmd5 = check_script_version()
+    if sys.version_info[0] == 3:
+        files['cc_version'] = bytes(CC_VERSION,"utf-8")
+        files['cc_md5'] = bytes(lmd5,"utf-8")
+    else:
+        files['cc_version'] = CC_VERSION
+        files['cc_md5'] = lmd5
 
     LOGGER.info('Gathering overall system information')
     files['uname'] = spawn('uname -a') + b'\n'
@@ -501,7 +565,15 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
     for key, item in get_mds_info(r, timeout, 'json').items():
         files['mds_{0}.json'.format(key)] = item
 
-    LOGGER.info('Gathering Orchestrator Information')
+    LOGGER.info('Getting auth caps')
+    output = ceph_mon_command(r, 'auth ls', timeout, 'json')
+    auth_dump = json.loads(output)['auth_dump']
+    for item in auth_dump:
+        if item['key']:
+            item['key'] = FILTER_PLACEHOLDER
+    files['auth_ls.json'] = json.dumps(auth_dump, sort_keys=True, indent=4).encode()
+
+    LOGGER.info('Gathering Orchestrator information')
     orch_status_json = ceph_mon_command(r, 'orch status', timeout, 'json')
     # ceph_mon_command should return empty if the command doesn't exist.
     if orch_status_json:
@@ -514,12 +586,30 @@ def collect_ceph_information(r, ceph_config, output_directory, timeout,
                 files['orch_{0}.json'.format(key)] = item
             files['orch_service_spec'] = ceph_mon_command(r, 'orch ls', timeout, 'plain', export="true")
 
-    if device_health:
+    if flags.get("add_device_health") or flags.get("add_all"):
         LOGGER.info('Gathering Device Health information')
         for key, item in get_device_info(r, timeout, 'plain').items():
             files['device_{0}'.format(key)] = item
         for key, item in get_device_info(r, timeout, 'json').items():
             files['device_{0}.json'.format(key)] = item
+
+    if flags.get("add_fragmentation_score") or flags.get("add_all"):
+        LOGGER.info('Gathering Fragmentation score information')
+        file_content = {}
+        osd_df = json.loads(files["osd_df.json"])
+        osds = osd_df["nodes"]
+        for osd in osds:
+            if osd["status"] == "up":
+                LOGGER.info("Fetching from {}".format(osd["name"]))
+                try:
+                    ret = ceph_osd_command(r, osd["id"], "bluestore allocator score block")
+                    score = json.loads(ret)
+                    file_content[osd["name"]] = score["fragmentation_rating"]
+                except OSDCommandError as e:
+                    file_content[osd["name"]] = e.output
+                    continue
+        files["osd_fragmentation.json"] = json.dumps(file_content).encode()
+
     fsid=str(r.get_fsid())
     timestr = datetime.datetime.utcnow().strftime(DATETIME_FORMAT)
     tarball = '{0}/ceph-collect_{1}_{2}.tar.gz'.format(
@@ -605,22 +695,47 @@ def upload_tarball(ARGS, tarball):
         raise_on_error=True
     )
 
+def get_remote_hash(url):
+    LOGGER.info("Checking if ceph-collect is out of date (10 seconds timeout)")
+    try:
+        response = urlopen(url, timeout=10)
+        remote_content = response.read()
+        return hashlib.md5(remote_content).hexdigest()
+    except Exception as e:
+        LOGGER.error(f"Could not fetch remote: {e}")
+        return None
 
+def get_local_hash(file_path):
+    with open(file_path, 'rb') as file:
+        return hashlib.md5(file.read()).hexdigest()
+
+def check_script_version():
+    remote_hash = get_remote_hash(REMOTE_URL)
+    local_hash = get_local_hash(LOCAL_FILE)
+
+    if remote_hash:
+        if local_hash != remote_hash:
+            LOGGER.info("Your local ceph-collect is out of date. Pull a new version from our repo")
+        else:
+            LOGGER.info("Your ceph-collect is up to date.")
+    return local_hash
 
 if __name__ == '__main__':
-    RETURN_VALUE = 1
     if ARGS.debug:
         LOGGER.setLevel(logging.DEBUG)
-    
+
+
+    RETURN_VALUE = 1
     tarball=ARGS.upload_file
+
     if not tarball:
         try:
             CNX = get_rados_connection(ceph_config=ARGS.ceph_config,
                                         timeout=ARGS.timeout)
-            tarball = collect_ceph_information(r=CNX, ceph_config=ARGS.ceph_config,
+            CNX.conf_set("rados_osd_op_timeout", str(ARGS.timeout))
+            tarball = collect_ceph_information(r=CNX, flags=FLAGS, ceph_config=ARGS.ceph_config,
                                         output_directory=ARGS.output_dir,
                                         timeout=ARGS.timeout, cleanup=ARGS.cleanup,
-                                        device_health=ARGS.device_health_metrics,
                                         custom_config_filters=ARGS.custom_config_filter or [],
                                         log_config=ARGS.log_gathered_config)
             RETURN_VALUE = 0

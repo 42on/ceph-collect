@@ -75,10 +75,16 @@ INFO:root:Outputted Ceph information to /tmp/ceph-collect_44bc0804-370e-4179-b60
 DEBUG:root:Cleaning up temporary directory: /tmp/tmpMpFk3n
 root@mon01:~#
 ```
-### Gathering Device Health information
-By default  ``ceph-collect`` doesn't collect the device's health information. Use ``--device-health-metrics`` to enable it.
+### Collecting additional information with flags
+By using flags,  ``ceph-collect`` can be instructed to collect additional information.
 
-``ceph-collect --device-health-metrics``
+``ceph-collect --add-device-health``
+
+``ceph-collect --add-device-health --add-fragmentation-score``
+
+To enable all the flags:
+
+``ceph-collect --add-all``
 
 ### One-liner
 If you want to run this tool without downloading it, you can run it directly using this one-liner:
