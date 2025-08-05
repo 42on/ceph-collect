@@ -60,7 +60,7 @@ class OSDCommandError(Exception):
         self.error_code = error_code
         self.message = message
         self.output = output
-        super().__init__(f"OSD command failed with error code {error_code}: {output}")
+        super().__init__("OSD command failed with error code {}: {}".format(error_code, output))
 
 # Version check
 REMOTE_URL = 'https://raw.githubusercontent.com/42on/ceph-collect/master/ceph-collect'
@@ -126,6 +126,10 @@ PARSER.add_argument('--friendly-name', action='store',
                     dest='friendly_name', default=None,
                     help='Friendly name of the cluster. Es. "production".')
 
+PARSER.add_argument('--yes', action='store_true',
+                    dest='terms_accepted', default=False,
+                    help='Accept terms to run the script.')
+
 PARSER.add_argument('--add-all', action='store_true', dest='add_all',
                     default=False, help='Enables every --add flag')
 
@@ -150,6 +154,35 @@ if not ARGS.upload_file:
         else:
             LOGGER.error("rados module not found, try running with python3")
             sys.exit(1)
+
+def show_warning_and_get_confirmation():
+    warning_text = """
+Before uploading any data, carefully assess the potential risks and implement appropriate security measures to mitigate these threats.
+
+By uploading data to this system, you acknowledge and agree that:
+
+    - You have the necessary permissions and authorization to upload and process the data.
+    - The data is accurate and complete.
+    - The data is stored and protected by appropriate security measures.
+    - The organization is not responsible for any data loss, security breaches, or compliance violations related to the upload.
+
+Use of this system constitutes acceptance of these terms and conditions.
+
+Do you accept these terms and wish to continue? (yes/y/no): 
+"""
+
+    try:
+        input_func = raw_input  # Python 2
+    except NameError:
+        input_func = input      # Python 3
+    
+    answer = input_func(warning_text).strip().lower()
+    if answer not in ['yes', 'y']:
+        print("Stopping.")
+        exit(0)
+    else:
+        print("Proceeding with the ceph-collect...")
+
 
 def exit_after(s,default):
     '''
@@ -397,7 +430,8 @@ def get_ceph_config(ceph_config):
 
 def collect_ceph_information(r, flags, ceph_config, output_directory, timeout,
                             cleanup=True, device_health=False,
-                            custom_config_filters=[],log_config=False):
+                            custom_config_filters=[],log_config=False,
+                            terms_accepted=False):
     
     config_filters=DEFAULT_CONFIG_FILTERS
     config_filters.extend(custom_config_filters) 
@@ -465,6 +499,9 @@ def collect_ceph_information(r, flags, ceph_config, output_directory, timeout,
             sys.exit(1) 
 
         return data.encode('utf-8')
+    
+    if not terms_accepted:
+        show_warning_and_get_confirmation()
 
     tmpdir = tempfile.mkdtemp()
 
@@ -695,6 +732,7 @@ def upload_tarball(ARGS, tarball):
         raise_on_error=True
     )
 
+@exit_after(ARGS.timeout, None)
 def get_remote_hash(url):
     LOGGER.info("Checking if ceph-collect is out of date (10 seconds timeout)")
     try:
@@ -702,22 +740,29 @@ def get_remote_hash(url):
         remote_content = response.read()
         return hashlib.md5(remote_content).hexdigest()
     except Exception as e:
-        LOGGER.error(f"Could not fetch remote: {e}")
+        LOGGER.error("Could not fetch remote: {}".format(e))
         return None
 
-def get_local_hash(file_path):
-    with open(file_path, 'rb') as file:
-        return hashlib.md5(file.read()).hexdigest()
+def get_local_hash():
+    try:
+        local_file_path = __file__
+        with open(local_file_path, 'rb') as file:
+            return hashlib.md5(file.read()).hexdigest()
+    except NameError:
+        LOGGER.warning("Script running without local file (likely oneliner)")
+        return None
 
 def check_script_version():
     remote_hash = get_remote_hash(REMOTE_URL)
-    local_hash = get_local_hash(LOCAL_FILE)
+    local_hash = get_local_hash()
 
-    if remote_hash:
+    if remote_hash and local_hash:
         if local_hash != remote_hash:
             LOGGER.info("Your local ceph-collect is out of date. Pull a new version from our repo")
         else:
             LOGGER.info("Your ceph-collect is up to date.")
+    elif remote_hash and not local_hash:
+        LOGGER.info("Running script without local hash, skipping version check")
     return local_hash
 
 if __name__ == '__main__':
@@ -737,7 +782,8 @@ if __name__ == '__main__':
                                         output_directory=ARGS.output_dir,
                                         timeout=ARGS.timeout, cleanup=ARGS.cleanup,
                                         custom_config_filters=ARGS.custom_config_filter or [],
-                                        log_config=ARGS.log_gathered_config)
+                                        log_config=ARGS.log_gathered_config,
+                                        terms_accepted=ARGS.terms_accepted)
             RETURN_VALUE = 0
         except (rados.Error,
                 tarfile.TarError,
