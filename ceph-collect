@@ -170,13 +170,26 @@ Use of this system constitutes acceptance of these terms and conditions.
 
 Do you accept these terms and wish to continue? (yes/y/no): 
 """
-
     try:
-        input_func = raw_input  # Python 2
-    except NameError:
-        input_func = input      # Python 3
+        # Try to open the terminal device
+        tty = open("/dev/tty")
+        tty.close()
+    except OSError:
+        LOGGER.error("Error: This script must be run in a terminal session.", file=sys.stderr)
+        sys.exit(1)
     
-    answer = input_func(warning_text).strip().lower()
+    print(warning_text)
+
+    with open("/dev/tty", "r") as tty:
+        answer = tty.readline().strip()
+
+    #try:
+    #    input_func = raw_input  # Python 2
+    #except NameError:
+    #    input_func = input      # Python 3
+    #
+    #answer = input_func(warning_text).strip().lower()
+    
     if answer not in ['yes', 'y']:
         print("Stopping.")
         exit(0)
@@ -748,9 +761,9 @@ def get_local_hash():
         local_file_path = __file__
         with open(local_file_path, 'rb') as file:
             return hashlib.md5(file.read()).hexdigest()
-    except NameError:
+    except:
         LOGGER.warning("Script running without local file (likely oneliner)")
-        return None
+        return ''
 
 def check_script_version():
     remote_hash = get_remote_hash(REMOTE_URL)
